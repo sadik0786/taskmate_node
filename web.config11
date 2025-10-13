@@ -1,0 +1,40 @@
+<configuration>
+  <system.webServer>
+    <!-- Handler to process Node.js files -->
+    <handlers>
+      <add name="iisnode" path="server.js" verb="*" modules="iisnode"/>
+    </handlers>
+
+    <!-- Rewrite all requests to server.js -->
+    <rewrite>
+      <rules>
+        <rule name="NodeApp" stopProcessing="true">
+          <match url=".*" />
+          <conditions logicalGrouping="MatchAll" />
+          <action type="Rewrite" url="server.js"/>
+        </rule>
+      </rules>
+    </rewrite>
+
+    <!-- Static content settings -->
+    <staticContent>
+      <!-- Serve uploads folder correctly -->
+      <mimeMap fileExtension=".*" mimeType="application/octet-stream" />
+    </staticContent>
+
+    <!-- Increase upload size if needed -->
+    <security>
+      <requestFiltering>
+        <requestLimits maxAllowedContentLength="2147483647" />
+      </requestFiltering>
+    </security>
+
+    <!-- iisnode logging -->
+    <iisnode loggingEnabled="true" logDirectoryName="iisnode" />
+  </system.webServer>
+
+  <!-- Optional: node_env -->
+  <appSettings>
+    <add key="NODE_ENV" value="development" />
+  </appSettings> 
+</configuration>

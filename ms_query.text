@@ -1,0 +1,40 @@
+//usp_getRoleMasterTrackifyAppapi
+create proc usp_getRoleMasterTrackifyAppapi 
+as 
+begin
+	select * from RoleMasterTrackifyApp;
+end;
+
+INSERT INTO dbo.RoleMasterTrackifyApp (RoleName, IsActive, EntryTimeStamp)
+VALUES
+('superAdmin', 1, GETDATE()),
+('admin', 1, GETDATE()),
+('employee', 1, GETDATE());
+
+//  usp_getProjectTrackifyAppapi
+create proc usp_getProjectTrackifyAppapi 
+as 
+begin
+	select * from ProjectTrackifyApp;
+end;
+
+INSERT INTO dbo.ProjectTrackifyApp (ProjectName, IsActive, EntryTimeStamp)
+VALUES
+('5nanceWeb', 1, GETDATE()),
+('Allrounder', 1, GETDATE()),
+('FlutterApp', 1, GETDATE());
+
+//usp_getSubProjectTrackifyAppapi
+
+create proc usp_getSubProjectTrackifyAppapi 
+as 
+begin
+	select * from SubProjectTrackifyApp;
+end;
+
+
+INSERT INTO dbo.SubProjectTrackifyApp (ProjectId, SubProjectName)
+VALUES
+(0,'Website Header'),
+(1,'Change user card'),
+(2,'New Page');
