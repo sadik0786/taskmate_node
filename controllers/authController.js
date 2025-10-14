@@ -288,60 +288,78 @@ exports.getProfile = async (req, res) => {
 //------ LOGIN
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ error: "Email & password required" });
 
-  try {
-    const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input("Email", sql.NVarChar(150), email)
-      .execute("dbo.Usp_PostLoginUserTaskMateAppApi");
+ if (!email || !password) {
+   return res.status(400).json({
+     success: false,
+     message: "Please enter both email and password.",
+   });
+ }
 
-    if (!result.recordset || result.recordset.length === 0) {
-      return res.status(400).json({ error: "User not found" });
-    }
+ try {
+   const pool = await poolPromise;
+   const result = await pool
+     .request()
+     .input("Email", sql.NVarChar(150), email)
+     .execute("dbo.Usp_PostLoginUserTaskMateAppApi");
 
-    const user = result.recordset[0];
+   if (!result.recordset || result.recordset.length === 0) {
+     return res.status(404).json({
+       success: false,
+       message: "No account found with this email address.",
+     });
+   }
 
-    const isValid = await bcrypt.compare(password, user.PasswordHash);
-    if (!isValid) return res.status(400).json({ error: "Invalid credentials" });
+   const user = result.recordset[0];
+   const isValid = await bcrypt.compare(password, user.PasswordHash);
 
-    // Map DB role names to canonical names
-    const roleMap = {
-      superadmin: "superadmin",
-      admin: "admin",
-      employee: "employee",
-    };
-    const normalizedRole =
-      roleMap[user.RoleName.toLowerCase()] || user.RoleName.toLowerCase();
+   if (!isValid) {
+     return res.status(200).json({
+       success: false,
+       message: "Incorrect password. Please try again.",
+     });
+   }
 
-    const tokenPayload = {
-      id: user.ID,
-      role: normalizedRole,
-      reportingId: user.ReportingID || 0,
-    };
+   // Map DB role names to canonical names
+   const roleMap = {
+     superadmin: "superadmin",
+     admin: "admin",
+     employee: "employee",
+   };
+   const normalizedRole =
+     roleMap[user.RoleName.toLowerCase()] || user.RoleName.toLowerCase();
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
-    });
+   const tokenPayload = {
+     id: user.ID,
+     role: normalizedRole,
+     reportingId: user.ReportingID || 0,
+   };
 
-    res.json({
-      token,
-      user: {
-        id: user.ID,
-        name: user.Name,
-        email: user.Email,
-        mobile: user.Mobile,
-        roleId: user.RoleID,
-        role: normalizedRole,
-        reportingId: user.ReportingID,
-      },
-    });
-  } catch (err) {
-    console.error("login error:", err);
-    res.status(500).json({ error: "Server error" });
-  }
+   const token = jwt.sign(tokenPayload, JWT_SECRET, {
+     expiresIn: JWT_EXPIRES_IN,
+   });
+
+   res.json({
+     success: true,
+     message: "Login successful!",
+     token,
+     user: {
+       id: user.ID,
+       name: user.Name,
+       email: user.Email,
+       mobile: user.Mobile,
+       roleId: user.RoleID,
+       role: normalizedRole,
+       reportingId: user.ReportingID,
+     },
+   });
+ } catch (err) {
+   console.error("login error:", err);
+   return res.status(500).json({
+     success: false,
+     message: "Something went wrong on the server. Please try again later.",
+   });
+ }
 };
 //------ update mobile
 exports.updateMobile = async (req, res) => {
