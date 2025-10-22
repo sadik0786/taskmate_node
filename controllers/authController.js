@@ -1,3 +1,4 @@
+require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const sharp = require("sharp");
@@ -446,7 +447,7 @@ exports.uploadAvatar = async (req, res) => {
         "UPDATE dbo.UserTaskMateApp SET ProfileImage = @ProfileImage WHERE ID = @UserID"
       );
 
-    res.json({ url: fileUrl });
+    res.json({ success: true, url: fileUrl });
   } catch (err) {
     console.error("uploadAvatar error:", err);
     if (err.originalError && err.originalError.info) {
