@@ -5,7 +5,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 function authenticate(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) {
-    return res.status(401).json({ error: "Authorization header missing" });
+    return res
+      .status(401)
+      .json({ success: false, error: "Authorization header missing" });
   }
 
   const token = authHeader.startsWith("Bearer ")
@@ -19,13 +21,13 @@ function authenticate(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = {
-      id: decoded.id,
+      id: decoded.id || decoded.userId || decoded.UserId,
       role: (decoded.role || "").toString().toLowerCase(),
       reportingId: decoded.reportingId || 0,
     };
     next();
   } catch (err) {
-    console.error("JWT error:", err.message);
+    // console.error("JWT error:", err.message);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 }

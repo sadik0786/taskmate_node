@@ -1,5 +1,5 @@
 {
-  "name": "etaskbackend",
+  "name": "taskmatebackend",
   "version": "1.0.0",
   "description": "Employee Work Tracker Backend",
   "main": "server.js",

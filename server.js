@@ -9,6 +9,7 @@ const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const userRoutes = require("./routes/user");
 const taskRoutes = require("./routes/task");
+const hrmsRoutes = require("./routes/hrms");
 
 const PORT = process.env.PORT || 5000;
 const app = express();
@@ -58,6 +59,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/task", taskRoutes);
+app.use("/api/hrms", hrmsRoutes);
 
 // Start server
 app.listen(PORT, "0.0.0.0", async () => {
