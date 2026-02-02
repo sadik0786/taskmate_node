@@ -1,7 +1,9 @@
 const bcrypt = require("bcryptjs");
 const { poolPromise, sql } = require("../db");
+const { ROLES } = require("../config/constants");
+const logger = require("../config/logger");
 
-exports.getEmployees = async (req, res) => {
+exports.getEmployees = async (req, res, next) => {
   try {
     const user = req.user;
     const pool = await poolPromise;
@@ -29,12 +31,12 @@ exports.getEmployees = async (req, res) => {
       LEFT JOIN dbo.RoleTaskMateApp R2 ON U2.RoleID = R2.RoleID
     `;
 
-    if (user.role.toLowerCase() === "admin") {
+    if (user.role.toLowerCase() === ROLES.ADMIN) {
       // Admin sees only employees reporting to admin
-      query += ` WHERE U.ReportingID = @userId AND R.RoleName = 'employee'`;
-    } else if (user.role.toLowerCase() === "superadmin") {
+      query += ` WHERE U.ReportingID = @userId AND R.RoleName = '${ROLES.EMPLOYEE}'`;
+    } else if (user.role.toLowerCase() === ROLES.SUPERADMIN) {
       // Superadmin sees all users they created (admins + employees)
-      query += ` WHERE R.RoleName IN ('admin', 'employee')`;
+      query += ` WHERE R.RoleName IN ('${ROLES.ADMIN}', '${ROLES.EMPLOYEE}')`;
     } else {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
@@ -49,13 +51,13 @@ exports.getEmployees = async (req, res) => {
       employees: result.recordset,
     });
   } catch (err) {
-    console.error("getEmployees error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getEmployees error", err);
+    next(err);
   }
 };
 // Superadmin  can delete admin / employee
 // admin delete only they added
-exports.deleteEmployees = async (req, res) => {
+exports.deleteEmployees = async (req, res, next) => {
   try {
     const { id } = req.params; // target employee/admin id
     const userRole = req.user.role.toLowerCase();
@@ -78,9 +80,9 @@ exports.deleteEmployees = async (req, res) => {
     const targetUser = targetUserResult.recordset[0];
 
     // Check permissions
-    if (userRole === "superadmin") {
+    if (userRole === ROLES.SUPERADMIN) {
       // superadmin can delete anyone
-    } else if (userRole === "admin") {
+    } else if (userRole === ROLES.ADMIN) {
       if (!(targetUser.RoleID === 3 && targetUser.CreatedBy === userId)) {
         return res.status(403).json({ success: false, error: "Access denied" });
       }
@@ -102,13 +104,13 @@ exports.deleteEmployees = async (req, res) => {
         .json({ success: false, error: "Failed to delete user" });
     }
   } catch (err) {
-    console.error("deleteEmployees error:", err);
-    return res.status(500).json({ success: false, error: "Server error" });
+    logger.error("deleteEmployees error", err);
+    next(err);
   }
 };
 
 // Superadmin  can see admin / employee tasks
-exports.getEmployeeTasks = async (req, res) => {
+exports.getEmployeeTasks = async (req, res, next) => {
   try {
     const { empId } = req.params;
     const userRole = req.user.role.toLowerCase();
@@ -140,7 +142,7 @@ exports.getEmployeeTasks = async (req, res) => {
     `;
 
     // Restrict admin → only tasks of their own employees (RoleID = 3)
-    if (userRole === "admin") {
+    if (userRole === ROLES.ADMIN) {
       query += " AND U.ReportingID = @UserId AND U.RoleID = 3";
     }
     query += " ORDER BY T.CreatedAt DESC";
@@ -153,12 +155,12 @@ exports.getEmployeeTasks = async (req, res) => {
 
     res.json({ success: true, tasks: result.recordset });
   } catch (err) {
-    console.error("getEmployeeTasks error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getEmployeeTasks error", err);
+    next(err);
   }
 };
 
-exports.getAllEmployeeTasks = async (req, res) => {
+exports.getAllEmployeeTasks = async (req, res, next) => {
   try {
     const userRole = req.user.role.toLowerCase();
     const userId = req.user.id;
@@ -191,7 +193,7 @@ exports.getAllEmployeeTasks = async (req, res) => {
     `;
 
     // Restrict admin → only employees under him (RoleID = 3 for employees)
-    if (userRole === "admin") {
+    if (userRole === ROLES.ADMIN) {
       query += " AND U.ReportingID = @UserId AND U.RoleID = 3";
     }
     // Superadmin sees all tasks (no additional filter)
@@ -204,12 +206,12 @@ exports.getAllEmployeeTasks = async (req, res) => {
 
     res.json({ success: true, tasks: result.recordset });
   } catch (err) {
-    console.error("getAllEmployeeTasks error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getAllEmployeeTasks error", err);
+    next(err);
   }
 };
 
-exports.getAllAdminTasks = async (req, res) => {
+exports.getAllAdminTasks = async (req, res, next) => {
   try {
     const pool = await poolPromise;
     // Superadmin → fetch tasks of Admins (RoleID = 2)
@@ -231,13 +233,13 @@ exports.getAllAdminTasks = async (req, res) => {
 
     res.json({ success: true, tasks: result.recordset });
   } catch (err) {
-    console.error("getAllAdminTasks error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getAllAdminTasks error", err);
+    next(err);
   }
 };
 
 // add project
-exports.addProject = async (req, res) => {
+exports.addProject = async (req, res, next) => {
   try {
     const { projectName } = req.body;
     const userId = req.user.id;
@@ -257,11 +259,11 @@ exports.addProject = async (req, res) => {
 
     res.json({ success: true, message: "Project added successfully" });
   } catch (error) {
-    console.error("addProject error:", error);
-    res.status(500).json({ success: false, error: "Failed to add project" });
+    logger.error("addProject error", error);
+    next(error);
   }
 };
-exports.listProjects = async (req, res) => {
+exports.listProjects = async (req, res, next) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
@@ -282,12 +284,12 @@ exports.listProjects = async (req, res) => {
       projects: result.recordset,
     });
   } catch (error) {
-    console.error("getProjects error:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch projects" });
+    logger.error("listProjects error", error);
+    next(error);
   }
 };
 // add sub project
-exports.addSubProject = async (req, res) => {
+exports.addSubProject = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { projectId, subProjectName } = req.body;
@@ -323,13 +325,11 @@ exports.addSubProject = async (req, res) => {
       `);
     res.json({ success: true, message: "Sub Project added successfully" });
   } catch (error) {
-    console.error("addsubProject error:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to add sub project" });
+    logger.error("addsubProject error", error);
+    next(error);
   }
 };
-exports.listSubProjects = async (req, res) => {
+exports.listSubProjects = async (req, res, next) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
@@ -353,13 +353,11 @@ exports.listSubProjects = async (req, res) => {
       subProjects: result.recordset,
     });
   } catch (error) {
-    console.error("listSubProjects error:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch sub projects" });
+    logger.error("listSubProjects error", error);
+    next(error);
   }
 };
-exports.listSubProjectsByProject = async (req, res) => {
+exports.listSubProjectsByProject = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const pool = await poolPromise;
@@ -381,14 +379,12 @@ exports.listSubProjectsByProject = async (req, res) => {
 
     res.json({ success: true, subProjects: result.recordset });
   } catch (error) {
-    console.error("listSubProjectsByProject error:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch sub projects" });
+    logger.error("listSubProjectsByProject error", error);
+    next(error);
   }
 };
 //reset password
-exports.checkEmailExists = async (req, res) => {
+exports.checkEmailExists = async (req, res, next) => {
   try {
     const { email } = req.body;
     const userRole = req.user.role.toLowerCase();
@@ -415,7 +411,7 @@ exports.checkEmailExists = async (req, res) => {
     const user = result.recordset[0];
 
     // Authorization checks
-    if (userRole === "admin") {
+    if (userRole === ROLES.ADMIN) {
       // Admin can only reset passwords for employees under them
       if (user.RoleID !== 3 || user.ReportingID !== userId) {
         return res.json({
@@ -438,13 +434,11 @@ exports.checkEmailExists = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("checkEmailExists error:", err);
-    res
-      .status(500)
-      .json({ success: false, exists: false, error: "Server error" });
+    logger.error("checkEmailExists error", err);
+    next(err);
   }
 };
-exports.resetPassword = async (req, res) => {
+exports.resetPassword = async (req, res, next) => {
   try {
     const { email, newPassword } = req.body;
     const userRole = req.user.role.toLowerCase();
@@ -517,7 +511,7 @@ exports.resetPassword = async (req, res) => {
       message: "Password updated successfully",
     });
   } catch (err) {
-    console.error("resetPassword error:", err);
-    res.status(500).json({ success: false, error: "Failed to reset password" });
+    logger.error("resetPassword error", err);
+    next(err);
   }
 };

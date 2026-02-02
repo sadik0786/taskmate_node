@@ -3,7 +3,10 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const path = require("path");
+const helmet = require("helmet");
 const { poolPromise, sql } = require("./db");
+const logger = require("./config/logger");
+const errorHandler = require("./middleware/errorHandler");
 
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
@@ -12,6 +15,8 @@ const hrmsRoutes = require("./routes/hrms");
 
 const PORT = process.env.PORT || 5000;
 const app = express();
+
+app.use(helmet()); // Secure headers
 
 app.use(cors());
 app.use(express.json());
@@ -46,8 +51,10 @@ async function seedAdmin() {
            VALUES (@name, @email, @mobile, @password, @roleId, 0,0, 0)`,
         );
       console.log("Super Admin created:", SuperAdminEmail);
+      logger.info(`Super Admin created: ${SuperAdminEmail}`);
     } else {
       console.log("Super Admin already exists");
+      logger.info("Super Admin already exists");
     }
   } catch (error) {
     console.error("seedAdmin error:", error);
@@ -61,8 +68,11 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/task", taskRoutes);
 app.use("/api/hrms", hrmsRoutes);
 
+// Error Handling Middleware (must be last)
+app.use(errorHandler);
+
 // Start server
 app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  logger.info(`🚀 Server running on http://0.0.0.0:${PORT}`);
   await seedAdmin();
 });

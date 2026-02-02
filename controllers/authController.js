@@ -5,11 +5,13 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 const { poolPromise, sql } = require("../db");
+const { ROLES } = require("../config/constants");
+const logger = require("../config/logger");
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "1d";
 
-exports.getCurrentUser = async (req, res) => {
+exports.getCurrentUser = async (req, res, next) => {
   try {
     const userId = req.user.id; // set by authenticate middleware
     const pool = await poolPromise;
@@ -33,16 +35,15 @@ exports.getCurrentUser = async (req, res) => {
     const user = result.recordset[0];
     res.json({ success: true, user });
   } catch (err) {
-    console.error("getCurrentUser error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getCurrentUser error", err);
+    next(err);
   }
 };
-// all admins
-exports.admins = async (req, res) => {
+exports.admins = async (req, res, next) => {
   try {
     const user = req.user;
     const pool = await poolPromise;
-    if (user.role.toLowerCase() !== "superadmin") {
+    if (user.role.toLowerCase() !== ROLES.SUPERADMIN) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -53,7 +54,7 @@ exports.admins = async (req, res) => {
         U.Email
       FROM dbo.UserTaskMateApp U
       INNER JOIN dbo.RoleTaskMateApp R ON U.RoleID = R.RoleID
-      WHERE R.RoleName = 'admin'
+      WHERE R.RoleName = '${ROLES.ADMIN}'
       ORDER BY U.Name
     `;
 
@@ -64,11 +65,11 @@ exports.admins = async (req, res) => {
       admins: result.recordset,
     });
   } catch (err) {
-    console.error("Error fetching admins:", err);
-    res.status(500).json({ error: "Failed to fetch admins" });
+    logger.error("Error fetching admins", err);
+    next(err);
   }
 };
-exports.checkEmailExists = async (req, res) => {
+exports.checkEmailExists = async (req, res, next) => {
   const { email } = req.body;
 
   try {
@@ -107,15 +108,12 @@ exports.checkEmailExists = async (req, res) => {
         : "Email not found in authorized list",
     });
   } catch (err) {
-    console.error("checkEmailExists error:", err);
-    res.status(500).json({
-      success: false,
-      error: "Server error during email check",
-    });
+    logger.error("checkEmailExists error", err);
+    next(err);
   }
 };
 //------ REGISTER EMPLOYEE (Admin only)
-exports.registerEmployee = async (req, res) => {
+exports.registerEmployee = async (req, res, next) => {
   const {
     name,
     email,
@@ -130,11 +128,11 @@ exports.registerEmployee = async (req, res) => {
     const creatorRole = (req.user.role || "").toLowerCase();
     const creatorId = req.user.id;
 
-    if (!["superadmin", "admin"].includes(creatorRole)) {
+    if (![ROLES.SUPERADMIN, ROLES.ADMIN].includes(creatorRole)) {
       return res.status(403).json({ error: "Access denied" });
     }
     // Admin cannot create another admin
-    if (creatorRole === "admin" && roleId === 2) {
+    if (creatorRole === ROLES.ADMIN && roleId === 2) {
       return res
         .status(403)
         .json({ error: "Admin cannot create another admin" });
@@ -174,14 +172,14 @@ exports.registerEmployee = async (req, res) => {
     let finalReportingId =
       typeof inputReportingId === "number" ? inputReportingId : 0;
 
-    if (creatorRole === "superadmin") {
+    if (creatorRole === ROLES.SUPERADMIN) {
       if (roleId === 2) {
         finalReportingId = creatorId; // both admin & employee report to superadmin
       }
       if (roleId === 3) {
         finalReportingId = inputReportingId; // both admin & employee report to superadmin
       }
-    } else if (creatorRole === "admin") {
+    } else if (creatorRole === ROLES.ADMIN) {
       if (roleId === 3) {
         finalReportingId = creatorId; // employee reports to admin
       }
@@ -214,15 +212,15 @@ exports.registerEmployee = async (req, res) => {
       employee,
     });
   } catch (err) {
-    console.error("registerEmployee error:", err);
+    logger.error("registerEmployee error", err);
     if (err.message.includes("already exists")) {
       return res.status(200).json({ success: false, error: err.message });
     }
-    res.status(500).json({ success: false, error: "Server error" });
+    next(err);
   }
 };
 //------ Get role (filtered by logged-in user)
-exports.getRoles = async (req, res) => {
+exports.getRoles = async (req, res, next) => {
   try {
     const pool = await poolPromise;
     const result = await pool
@@ -234,13 +232,13 @@ exports.getRoles = async (req, res) => {
     let roles = result.recordset || [];
     const userRole = (req.user?.role || "").toLowerCase();
 
-    if (userRole === "superadmin") {
+    if (userRole === ROLES.SUPERADMIN) {
       roles = roles.filter(
-        (r) => (r.RoleName || "").toString().toLowerCase() !== "superadmin"
+        (r) => (r.RoleName || "").toString().toLowerCase() !== ROLES.SUPERADMIN
       );
-    } else if (userRole === "admin") {
+    } else if (userRole === ROLES.ADMIN) {
       roles = roles.filter(
-        (r) => (r.RoleName || "").toString().toLowerCase() === "employee"
+        (r) => (r.RoleName || "").toString().toLowerCase() === ROLES.EMPLOYEE
       );
     } else {
       // employees shouldn't get role list
@@ -249,12 +247,12 @@ exports.getRoles = async (req, res) => {
 
     return res.json({ success: true, data: roles });
   } catch (err) {
-    console.error("getRoles error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getRoles error", err);
+    next(err);
   }
 };
 //------ GET PROFILE
-exports.getProfile = async (req, res) => {
+exports.getProfile = async (req, res, next) => {
   try {
     const pool = await poolPromise;
     const result = await pool
@@ -284,12 +282,12 @@ exports.getProfile = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("getProfile error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getProfile error", err);
+    next(err);
   }
 };
 //------ LOGIN
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -325,9 +323,9 @@ exports.login = async (req, res) => {
 
     // Map DB role names to canonical names
     const roleMap = {
-      superadmin: "superadmin",
-      admin: "admin",
-      employee: "employee",
+      superadmin: ROLES.SUPERADMIN,
+      admin: ROLES.ADMIN,
+      employee: ROLES.EMPLOYEE,
     };
     const normalizedRole =
       roleMap[user.RoleName.toLowerCase()] || user.RoleName.toLowerCase();
@@ -357,15 +355,12 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("login error:", err);
-    return res.status(200).json({
-      success: false,
-      message: "Something went wrong on the server. Please try again later.",
-    });
+    logger.error("login error", err);
+    next(err);
   }
 };
 //------ update mobile
-exports.updateMobile = async (req, res) => {
+exports.updateMobile = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { mobile } = req.body;
@@ -388,15 +383,15 @@ exports.updateMobile = async (req, res) => {
 
     res.json({ success: true, message: "Mobile updated successfully" });
   } catch (error) {
-    console.error("updateMobile error:", error);
+    logger.error("updateMobile error", error);
     if (error.originalError && error.originalError.info) {
       return res.status(400).json({ error: error.originalError.info.message });
     }
-    res.status(500).json({ success: false, error: "Failed to update mobile" });
+    next(error);
   }
 };
 //------ UPLOAD AVATAR
-exports.uploadAvatar = async (req, res) => {
+exports.uploadAvatar = async (req, res, next) => {
   try {
     if (!req.file || typeof req.file.path !== "string") {
       return res.status(400).json({ error: "Invalid file upload" });
@@ -449,15 +444,15 @@ exports.uploadAvatar = async (req, res) => {
 
     res.json({ success: true, url: fileUrl });
   } catch (err) {
-    console.error("uploadAvatar error:", err);
+    logger.error("uploadAvatar error", err);
     if (err.originalError && err.originalError.info) {
       return res.status(400).json({ error: err.originalError.info.message });
     }
-    res.status(500).json({ error: "Failed to upload image" });
+    next(err);
   }
 };
 //------ Request password reset (send email with reset link/token)
-exports.forgotPasswordRequest = async (req, res) => {
+exports.forgotPasswordRequest = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -486,12 +481,12 @@ exports.forgotPasswordRequest = async (req, res) => {
       message: "If the email exists, a reset link has been sent",
     });
   } catch (err) {
-    console.error("forgotPasswordRequest error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("forgotPasswordRequest error", err);
+    next(err);
   }
 };
 //------ Reset password with token/email verification
-exports.resetPasswordSelf = async (req, res) => {
+exports.resetPasswordSelf = async (req, res, next) => {
   try {
     const { email, newPassword, resetToken } = req.body;
 
@@ -539,7 +534,7 @@ exports.resetPasswordSelf = async (req, res) => {
       message: "Password reset successfully",
     });
   } catch (err) {
-    console.error("resetPasswordSelf error:", err);
-    res.status(500).json({ success: false, error: "Failed to reset password" });
+    logger.error("resetPasswordSelf error", err);
+    next(err);
   }
 };

@@ -1,13 +1,15 @@
 const { poolPromise, sql } = require("../db");
+const { ROLES } = require("../config/constants");
+const logger = require("../config/logger");
 
 // ------------------ GET TASKS (Alias for getTasksByHierarchy) ------------------//
-exports.getTasks = async (req, res) => {
+exports.getTasks = async (req, res, next) => {
   // Simply call the hierarchical function
   await exports.getTasksByHierarchy(req, res);
 };
 
 // ------------------ GET TASKS BY HIERARCHY ------------------//
-exports.getTasksByHierarchy = async (req, res) => {
+exports.getTasksByHierarchy = async (req, res, next) => {
   try {
     const user = req.user;
     const userRole = user.role.toLowerCase();
@@ -54,14 +56,14 @@ exports.getTasksByHierarchy = async (req, res) => {
     let request = pool.request();
 
     // ✅ Apply role-based hierarchical filtering
-    if (userRole === "superadmin") {
+    if (userRole === ROLES.SUPERADMIN) {
       // Superadmin sees all tasks
       query += ` AND 1=1`;
-    } else if (userRole === "admin") {
+    } else if (userRole === ROLES.ADMIN) {
       // Admin sees: their own tasks + tasks of employees they created
       query += ` AND (t.UserTaskMateAppID = @userId OR t.CreatedBy = @userId OR u.ReportingID = @userId)`;
       request.input("userId", sql.Int, user.id);
-    } else if (userRole === "employee") {
+    } else if (userRole === ROLES.EMPLOYEE) {
       // Employee sees only their own tasks
       query += ` AND t.UserTaskMateAppID = @userId`;
       request.input("userId", sql.Int, user.id);
@@ -81,15 +83,13 @@ exports.getTasksByHierarchy = async (req, res) => {
       count: result.recordset.length,
     });
   } catch (err) {
-    console.error("getTasksByHierarchy error:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Server error: " + err.message });
+    logger.error("getTasksByHierarchy error", err);
+    next(err);
   }
 };
 
 // ------------------ GET TASK BY ID ------------------//
-exports.getTaskById = async (req, res) => {
+exports.getTaskById = async (req, res, next) => {
   try {
     const taskId = req.params.id;
     const currentUser = req.user;
@@ -121,13 +121,13 @@ exports.getTaskById = async (req, res) => {
       data: task,
     });
   } catch (err) {
-    console.error("getTaskById error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
+    logger.error("getTaskById error", err);
+    next(err);
   }
 };
 
 // ------------------ CREATE TASK ------------------//
-exports.createTask = async (req, res) => {
+exports.createTask = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const {
@@ -166,13 +166,13 @@ exports.createTask = async (req, res) => {
       `);
     res.json({ success: true, message: "Task added successfully" });
   } catch (error) {
-    console.error("addTask error:", error);
-    res.status(500).json({ success: false, error: "Failed to add task" });
+    logger.error("addTask error", error);
+    next(error);
   }
 };
 
 // ------------------ UPDATE TASK ------------------//
-exports.updateTask = async (req, res) => {
+exports.updateTask = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const taskId = parseInt(req.params.id);
@@ -218,13 +218,13 @@ exports.updateTask = async (req, res) => {
 
     res.json({ success: true, message: "Task updated successfully" });
   } catch (error) {
-    console.error("updateTask error:", error);
-    res.status(500).json({ success: false, error: "Failed to update task" });
+    logger.error("updateTask error", error);
+    next(error);
   }
 };
 
 // ------------------ DELETE TASK ------------------//
-exports.deleteTask = async (req, res) => {
+exports.deleteTask = async (req, res, next) => {
   const taskId = req.params.id;
 
   if (isNaN(taskId)) {
@@ -248,7 +248,7 @@ exports.deleteTask = async (req, res) => {
     const task = taskResult.recordset[0];
 
     // ✅ Check access rights based on user role
-    if (currentUser.role.toLowerCase() === "employee") {
+    if (currentUser.role.toLowerCase() === ROLES.EMPLOYEE) {
       // Employee can only delete their own tasks
       if (task.UserTaskMateAppID !== currentUser.id) {
         return res.status(403).json({
@@ -256,7 +256,7 @@ exports.deleteTask = async (req, res) => {
           error: "You can only delete your own tasks",
         });
       }
-    } else if (currentUser.role.toLowerCase() === "admin") {
+    } else if (currentUser.role.toLowerCase() === ROLES.ADMIN) {
       // Admin can delete their own tasks + tasks of employees under them
       if (task.UserTaskMateAppID !== currentUser.id) {
         // Check if the task belongs to an employee under this admin
@@ -292,10 +292,8 @@ exports.deleteTask = async (req, res) => {
       message: "Task deleted successfully",
     });
   } catch (err) {
-    console.error("deleteTask error:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Server error: " + err.message });
+    logger.error("deleteTask error", err);
+    next(err);
   }
 };
 
@@ -303,9 +301,9 @@ exports.deleteTask = async (req, res) => {
 async function checkTaskAccess(currentUser, task, pool) {
   const currentRole = currentUser.role.toLowerCase();
 
-  if (currentRole === "superadmin") {
+  if (currentRole === ROLES.SUPERADMIN) {
     return true; // Superadmin can access all tasks
-  } else if (currentRole === "admin") {
+  } else if (currentRole === ROLES.ADMIN) {
     // Admin can access: their tasks + tasks of their employees
     if (task.UserId === currentUser.id) return true; // Own task
     if (task.CreatedBy === currentUser.id) return true; // Task created by admin
@@ -322,7 +320,7 @@ async function checkTaskAccess(currentUser, task, pool) {
     }
 
     return false;
-  } else if (currentRole === "employee") {
+  } else if (currentRole === ROLES.EMPLOYEE) {
     // Employee can only access their own tasks
     return task.UserId === currentUser.id;
   }
