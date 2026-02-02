@@ -1,5 +1,39 @@
 const { poolPromise, sql } = require("../db");
+// get all employee
+exports.getAllEmployee = async (req, res) => {
+  try {
+    const pool = await poolPromise;
 
+    const result = await pool.request().query(`
+      SELECT 
+        ID,
+        ProfileImage,
+        Name,
+        Email,
+        Mobile,
+        RoleID,
+        ReportingID,
+        CreatedAt,
+        CreatedBy,
+        UpdatedAt,
+        UpdatedBy
+      FROM UserTaskMateApp
+      ORDER BY Name;
+    `);
+
+    res.status(200).json({
+      success: true,
+      data: result.recordset,
+      count: result.recordset.length,
+    });
+  } catch (err) {
+    console.error("Get All Employees Error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Server error while fetching employees",
+    });
+  }
+};
 // get all leave type
 exports.getAllLeaveType = async (req, res) => {
   try {
@@ -169,8 +203,8 @@ exports.getOtherLeaveRequest = async (req, res) => {
 // update leave by hr / super admin
 exports.updateLeaves = async (req, res) => {
   try {
-    const { leaveId, status, hrReason } = req.body;
     const { role, id } = req.user;
+    const { leaveId, status, hrReason } = req.body;
 
     // role check
     if (!["hr", "superadmin"].includes(role)) {

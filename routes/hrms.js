@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const {
+  getAllEmployee,
   getAllLeaveType,
   applyLeave,
   getMyLeaves,
@@ -11,6 +12,7 @@ const {
 } = require("../controllers/hrmsController");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 
+router.get("/all-employee", authenticate, getAllEmployee);
 router.get("/leave-types", authenticate, getAllLeaveType);
 router.get("/my-leaves", authenticate, getMyLeaves);
 router.post("/leave-apply", authenticate, applyLeave);

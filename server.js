@@ -7,7 +7,6 @@ const { poolPromise, sql } = require("./db");
 
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
-const userRoutes = require("./routes/user");
 const taskRoutes = require("./routes/task");
 const hrmsRoutes = require("./routes/hrms");
 
@@ -20,7 +19,9 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ---------------- Seed Admin User ---------------- //
 async function seedAdmin() {
-  const SuperAdminEmail = "deepak.kadam@5nance.com";
+  const name = "Diksha kabra";
+  const SuperAdminEmail = "diksha.kabra@5nance.com";
+  const mobile = "";
   try {
     const pool = await poolPromise;
     // check if exists
@@ -33,23 +34,23 @@ async function seedAdmin() {
       const hashed = await bcrypt.hash("admin$123", 10);
       await pool
         .request()
-        .input("name", sql.NVarChar, "Deepak Kadam")
+        .input("name", sql.NVarChar, name)
         .input("email", sql.NVarChar, SuperAdminEmail)
-        .input("mobile", sql.VarChar, "9967585171")
+        .input("mobile", sql.VarChar, mobile)
         .input("password", sql.NVarChar, hashed)
-        .input("roleId", sql.Int, 1)
-        .input("reportingId", sql.Int, 0)
+        .input("roleId", sql.Int, 6)
+        .input("reportingId", sql.Int, 5)
         .query(
           `INSERT INTO UserTaskMateApp 
             (Name, Email, Mobile, PasswordHash, RoleID,ReportingID, CreatedBy, UpdatedBy) 
-           VALUES (@name, @email, @mobile, @password, @roleId, 0,0, 0)`
+           VALUES (@name, @email, @mobile, @password, @roleId, 0,0, 0)`,
         );
-      console.log("✅ Super Admin created:", SuperAdminEmail);
+      console.log("Super Admin created:", SuperAdminEmail);
     } else {
-      console.log("ℹ️ Super Admin already exists");
+      console.log("Super Admin already exists");
     }
   } catch (error) {
-    console.error("❌ seedAdmin error:", error);
+    console.error("seedAdmin error:", error);
   }
 }
 
@@ -57,12 +58,11 @@ async function seedAdmin() {
 app.get("/", async (req, res) => res.json("working"));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/users", userRoutes);
 app.use("/api/task", taskRoutes);
 app.use("/api/hrms", hrmsRoutes);
 
 // Start server
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  await seedAdmin(); // ✅ run after server starts
+  await seedAdmin();
 });
