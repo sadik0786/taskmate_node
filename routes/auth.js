@@ -46,7 +46,7 @@ router.post(
 router.post(
   "/register",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["ceo", "admin"]),
   registerEmployee
 );
 router.post("/mobileUpdate", authenticate, updateMobile);

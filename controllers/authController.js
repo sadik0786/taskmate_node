@@ -323,9 +323,12 @@ exports.login = async (req, res, next) => {
 
     // Map DB role names to canonical names
     const roleMap = {
-      superadmin: ROLES.SUPERADMIN,
-      admin: ROLES.ADMIN,
-      employee: ROLES.EMPLOYEE,
+      ceo:ROLES.CEO,
+      hr:ROLES.HR,
+      accountant:ROLES.Accountant,
+      superadmin: ROLES.SuperAdmin,
+      admin: ROLES.Admin,
+      employee: ROLES.Employee,
     };
     const normalizedRole =
       roleMap[user.RoleName.toLowerCase()] || user.RoleName.toLowerCase();
@@ -335,6 +338,8 @@ exports.login = async (req, res, next) => {
       role: normalizedRole,
       reportingId: user.ReportingID || 0,
     };
+console.log("DB Role:", user.RoleName);
+console.log("Token Role:", normalizedRole);
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,

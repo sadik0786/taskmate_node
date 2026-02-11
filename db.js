@@ -1,4 +1,5 @@
 const sql = require("mssql");
+const logger = require("./config/logger");
 
 const config = {
   user: process.env.DB_USER,
@@ -15,11 +16,11 @@ const config = {
 const poolPromise = new sql.ConnectionPool(config)
   .connect()
   .then((pool) => {
-    console.log("✅ Connected to MSSQL");
+    logger.info("✅ Connected to MSSQL");
     return pool;
   })
   .catch((err) => {
-    console.error("❌ Database connection failed:", err);
+    logger.error("❌ Database connection failed:", err);
     process.exit(1);
   });
 

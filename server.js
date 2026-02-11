@@ -24,8 +24,8 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ---------------- Seed Admin User ---------------- //
 async function seedAdmin() {
-  const name = "Diksha kabra";
-  const SuperAdminEmail = "diksha.kabra@5nance.com";
+  const name = "Dinesh Rohira";
+  const SuperAdminEmail = "dinesh@5nance.com";
   const mobile = "";
   try {
     const pool = await poolPromise;
@@ -43,17 +43,15 @@ async function seedAdmin() {
         .input("email", sql.NVarChar, SuperAdminEmail)
         .input("mobile", sql.VarChar, mobile)
         .input("password", sql.NVarChar, hashed)
-        .input("roleId", sql.Int, 6)
-        .input("reportingId", sql.Int, 5)
+        .input("roleId", sql.Int, 1)
+        .input("reportingId", sql.Int, 0)
         .query(
           `INSERT INTO UserTaskMateApp 
             (Name, Email, Mobile, PasswordHash, RoleID,ReportingID, CreatedBy, UpdatedBy) 
            VALUES (@name, @email, @mobile, @password, @roleId, 0,0, 0)`,
         );
-      console.log("Super Admin created:", SuperAdminEmail);
       logger.info(`Super Admin created: ${SuperAdminEmail}`);
     } else {
-      console.log("Super Admin already exists");
       logger.info("Super Admin already exists");
     }
   } catch (error) {
