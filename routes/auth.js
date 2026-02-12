@@ -7,6 +7,8 @@ const {
   login,
   uploadAvatar,
   getRoles,
+  getUsersByRole,
+  getUsersByRoles,
   getProfile,
   updateMobile,
   forgotPasswordRequest,
@@ -36,7 +38,7 @@ router.get("/me", authenticate, getCurrentUser);
 router.post("/login", login);
 
 // protected
-router.get("/admins", authenticate, authorize(["superadmin"]), admins);
+router.get("/admins", authenticate, authorize(["ceo", "hr"]), admins);
 router.post(
   "/checkemail",
   authenticate,
@@ -46,23 +48,20 @@ router.post(
 router.post(
   "/register",
   authenticate,
-  authorize(["superadmin", "admin"]),
-  registerEmployee
+  authorize(["ceo", "hr"]),
+  registerEmployee,
 );
 router.post("/mobileUpdate", authenticate, updateMobile);
 
 router.get("/roles", authenticate, getRoles);
+router.get("/by-role", authenticate, getUsersByRole);
+router.get("/by-roles", authenticate, getUsersByRoles);
+
 router.get("/profile", authenticate, getProfile);
 
 router.post("/upload", authenticate, upload.single("avatar"), uploadAvatar);
 // forgot password
-router.post(
-  "/forgot_password",
-  forgotPasswordRequest // No authentication required initially
-);
-router.post(
-  "/reset_password_self",
-  resetPasswordSelf // Minimal authentication (email verification)
-);
+router.post("/forgot_password", forgotPasswordRequest);
+router.post("/reset_password_self", resetPasswordSelf);
 
 module.exports = router;

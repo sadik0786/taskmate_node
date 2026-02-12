@@ -43,7 +43,7 @@ exports.admins = async (req, res) => {
   try {
     const user = req.user;
     const pool = await poolPromise;
-    if (user.role.toLowerCase() !== "superadmin") {
+    if (user.role.toLowerCase() !== "ceo") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -54,7 +54,7 @@ exports.admins = async (req, res) => {
         U.Email
       FROM dbo.UserTaskMateApp U
       INNER JOIN dbo.RoleTaskMateApp R ON U.RoleID = R.RoleID
-      WHERE R.RoleName = 'admin'
+      WHERE R.RoleName in( 'hr','accountant','superadmin','admin','employee')
       ORDER BY U.Name
     `;
 
@@ -117,89 +117,53 @@ exports.checkEmailExists = async (req, res) => {
 };
 //------ REGISTER EMPLOYEE (Admin only)
 exports.registerEmployee = async (req, res) => {
-  const {
-    name,
-    email,
-    mobile,
-    password,
-    roleId,
-    reportingId: inputReportingId,
-    // assignedAdminId: inputReportingId,
-  } = req.body;
+const { name, email, mobile, password, roleId, reportingId } = req.body;
+
 
   try {
     const creatorRole = (req.user.role || "").toLowerCase();
     const creatorId = req.user.id;
-    // Allow only CEO, Hr
-    if (!["ceo", "hr"].includes(creatorRole)) {
-      return res.status(403).json({ error: "Access denied" });
+    // Convert roleId to number (VERY IMPORTANT)
+    const newRoleId = Number(roleId);
+    if (!newRoleId) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid roleId",
+      });
     }
-    // Admin cannot create another admin
-    // if (creatorRole === "admin" && roleId === 2) {
-    //   return res
-    //     .status(403)
-    //     .json({ error: "Admin cannot create another admin" });
-    // }
-
+    // Mobile validation
     if (mobile && !/^\d{10,15}$/.test(mobile)) {
       return res.status(400).json({ error: "Invalid mobile number" });
     }
-
     if (!email.endsWith("@5nance.com")) {
       return res
         .status(400)
         .json({ error: "Only @5nance.com emails are allowed" });
     }
 
-    const pool = await poolPromise;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Auto-assign reportingId
-    let finalReportingId =
-      typeof inputReportingId === "number" ? inputReportingId : 0;
-    /* =========================
-        CEO LOGIC
-    ========================= */
+    // Role Hierarchy Logic
     if (creatorRole === ROLES.CEO) {
       if (
-        [ROLE_IDS.HR, ROLE_IDS.Accountant, ROLE_IDS.SuperAdmin].includes(roleId)
+        ![ROLE_IDS.HR, ROLE_IDS.Accountant, ROLE_IDS.SuperAdmin].includes(
+          newRoleId,
+        )
       ) {
-        finalReportingId = creatorId;
-      } else {
         return res.status(403).json({
+          success: false,
           error: "CEO can only create HR, Accountant, or SuperAdmin",
         });
       }
     } else if (creatorRole === ROLES.HR) {
-      /* =========================
-         SUPERADMIN LOGIC
-        ========================= */
-      if ([ROLE_IDS.Admin, ROLE_IDS.Employee].includes(roleId)) {
-        finalReportingId = creatorId;
-      } else {
+      if (![ROLE_IDS.Admin, ROLE_IDS.Employee].includes(newRoleId)) {
         return res.status(403).json({
-          error: "Hr can only create Admin or Employee",
+          success: false,
+          error: "HR can only create Admin or Employee",
         });
       }
     }
-    // if (creatorRole === "ceo") {
-    //   if (
-    //     [ROLE_IDS.HR, ROLE_IDS.Accountant, ROLE_IDS.SuperAdmin].includes(roleId)
-    //   ) {
-    //     finalReportingId = creatorId; // both hr,accountant & superadmin report to ceo
-    //   }
-    //   // if (roleId === 6) {
-    //   //   finalReportingId = inputReportingId; // both admin & employee report to superadmin
-    //   // }
-    // } else if (creatorRole === "superadmin") {
-    //   if (roleId === 5) {
-    //     finalReportingId = creatorId; // admin  reports to superadmin
-    //   }
-    // } else if (creatorRole === "admin") {
-    //   if (roleId === 6) {
-    //     finalReportingId = creatorId; // employee reports to admin
-    //   }
-    // }
+
+    const pool = await poolPromise;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool
       .request()
@@ -211,8 +175,8 @@ exports.registerEmployee = async (req, res) => {
         mobile && mobile.trim() !== "" ? mobile : null,
       )
       .input("PasswordHash", sql.NVarChar(255), hashedPassword)
-      .input("RoleID", sql.Int, roleId)
-      .input("ReportingID", sql.Int, finalReportingId)
+      .input("RoleID", sql.Int, newRoleId)
+      .input("ReportingID", sql.Int, reportingId || creatorId)
       .input("CreatedBy", sql.Int, creatorId)
       .execute("dbo.Usp_PostRegisterEmployeeTaskMateAppApi");
 
@@ -228,8 +192,9 @@ exports.registerEmployee = async (req, res) => {
       employee,
     });
   } catch (err) {
-    console.error("registerEmployee error:", err);
-    if (err.message.includes("already exists")) {
+    console.error("Register Employee error:", err);
+
+    if (err.message?.includes("already exists")) {
       return res.status(200).json({ success: false, error: err.message });
     }
     res.status(500).json({ success: false, error: "Server error" });
@@ -248,24 +213,19 @@ exports.getRoles = async (req, res) => {
     let roles = result.recordset || [];
     const userRole = (req.user?.role || "").toLowerCase().trim();
 
-    if (userRole == "ceo") {
-      roles = roles.filter(
-        (r) => (r.RoleName || "").toString().toLowerCase().trim() !== "ceo",
-      );
-    } else if (userRole === "superadmin") {
-      roles = roles.filter(
-        (r) =>
-          (r.RoleName || "").toString().toLowerCase().trim() !== "superadmin",
-      );
-    } else if (userRole === "admin") {
-      roles = roles.filter(
-        (r) =>
-          (r.RoleName || "").toString().toLowerCase().trim() === "employee",
-      );
-    } else {
-      // employees shouldn't get role list
-      roles = [];
-    }
+     if (userRole === "ceo") {
+       roles = roles.filter((r) => {
+         const role = (r.RoleName || "").toLowerCase().trim();
+         return role === "hr" || role === "accountant" || role === "superadmin";
+       });
+     } else if (userRole === "hr") {
+       roles = roles.filter((r) => {
+         const role = (r.RoleName || "").toLowerCase().trim();
+         return role === "admin" || role === "employee";
+       });
+     } else {
+       roles = [];
+     }
 
     return res.json({ success: true, data: roles });
   } catch (err) {
@@ -273,6 +233,87 @@ exports.getRoles = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
+  // GET /users/by-role?role=superadmin
+  exports.getUsersByRole = async (req, res) => {
+    try {
+      const { role } = req.query;
+      if (!role) {
+        return res.status(400).json({
+          success: false,
+          error: "Role is required",
+        });
+      }
+
+      const pool = await poolPromise;
+      const result = await pool.request().input("RoleName", sql.NVarChar, role)
+        .query(`
+      SELECT u.ID, u.Name 
+      FROM UserTaskMateApp u
+      JOIN RoleTaskMateApp r ON u.RoleID = r.RoleId
+      WHERE LOWER(r.RoleName) = LOWER(@RoleName)
+    `);
+
+      res.json({
+        success: true,
+        data: result.recordset,
+      });
+    } catch (err) {
+      console.error("getUsersByRole error:", err);
+      res.status(500).json({
+        success: false,
+        error: "Server error",
+      });
+    }
+  };
+  exports.getUsersByRoles = async (req, res) => {
+    try {
+      let roles = req.query.roles;
+
+      if (!roles) {
+        return res.status(400).json({
+          success: false,
+          error: "Roles required",
+        });
+      }
+
+      if (!Array.isArray(roles)) {
+        roles = [roles];
+      }
+
+      const pool = await poolPromise;
+      const request = pool.request();
+
+      roles.forEach((role, index) => {
+        request.input(`role${index}`, sql.NVarChar, role);
+      });
+
+      const conditions = roles
+        .map((_, index) => `LOWER(r.RoleName) = LOWER(@role${index})`)
+        .join(" OR ");
+
+      const result = await request.query(`
+      SELECT u.ID, u.Name
+      FROM UserTaskMateApp u
+      JOIN RoleTaskMateApp r ON u.RoleID = r.RoleId
+      WHERE ${conditions}
+      ORDER BY u.Name
+    `);
+
+      res.json({
+        success: true,
+        data: result.recordset,
+      });
+    } catch (err) {
+      console.error("getUsersByRoles error:", err);
+      res.status(500).json({
+        success: false,
+        error: "Server error",
+      });
+    }
+  };
+
+
 //------ GET PROFILE
 exports.getProfile = async (req, res) => {
   try {

@@ -22,7 +22,7 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = {
       id: decoded.id || decoded.userId || decoded.UserId,
-      role: (decoded.role || "").toString().toLowerCase(),
+      role: (decoded.role || "").toString().toLowerCase().trim(),
       reportingId: decoded.reportingId || 0,
     };
     next();
@@ -40,6 +40,8 @@ function authorize(roles = []) {
     }
     const userRole = (req.user.role || "").toLowerCase();
     const allowedRoles = roles.map((r) => (r || "").toLowerCase());
+    // console.log("Authorization Header:", req.headers.authorization);
+    // console.log("Decoded User:", req.user);
     if (!allowedRoles.includes(userRole)) {
       return res
         .status(403)
