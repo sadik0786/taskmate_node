@@ -32,9 +32,12 @@ exports.getEmployees = async (req, res) => {
     if (user.role.toLowerCase() === "admin") {
       // Admin sees only employees reporting to admin
       query += ` WHERE U.ReportingID = @userId AND R.RoleName = 'employee'`;
-    } else if (user.role.toLowerCase() === "superadmin") {
-      // Superadmin sees all users they created (admins + employees)
-      query += ` WHERE R.RoleName IN ('admin', 'employee')`;
+    } else if (
+      user.role.toLowerCase() === "superadmin" ||
+      user.role.toLowerCase() === "ceo"
+    ) {
+      // Superadmin and CEO sees all users they created (admins + employees)
+      query += ` WHERE R.RoleName IN ('admin', 'employee', 'hr', 'accountant', 'manager')`;
     } else {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }

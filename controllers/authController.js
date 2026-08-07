@@ -216,7 +216,7 @@ exports.getRoles = async (req, res) => {
      if (userRole === "ceo") {
        roles = roles.filter((r) => {
          const role = (r.RoleName || "").toLowerCase().trim();
-         return role === "hr" || role === "accountant" || role === "superadmin";
+         return role === "hr" || role === "accountant" || role === "manager" || role === "superadmin";
        });
      } else if (userRole === "hr") {
        roles = roles.filter((r) => {

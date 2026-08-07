@@ -20,8 +20,8 @@ const router = express.Router();
 router.get(
   "/employee",
   authenticate,
-  authorize(["superadmin", "admin"]),
-  getEmployees
+  authorize(["ceo", "superadmin", "admin"]),
+  getEmployees,
 );
 router.post("/employee/:id", authenticate, deleteEmployees);
 router.get(
