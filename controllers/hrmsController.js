@@ -39,15 +39,21 @@ exports.getAllLeaveType = async (req, res) => {
   try {
     const pool = await poolPromise;
 
+    const userId = req.user.id;
     // Get the task
-    const result = await pool.request().query(`
+    const result = await pool.request().input("UserId", sql.Int, userId).query(`
       SELECT 
-        Id,
-        LeaveName,
-        LeaveCount
-      FROM LeaveTypeTaskMateApp
-      WHERE IsActive = 1
-      ORDER BY LeaveName
+        L.Id,
+        L.LeaveName,
+        L.LeaveCount - ISNULL(SUM(A.TotalDays), 0) AS LeaveCount
+      FROM LeaveTypeTaskMateApp L
+      LEFT JOIN ApplyLeaveTaskMateApp A 
+        ON L.Id = A.LeaveTypeTaskMateAppId 
+        AND A.UserTaskMateAppId = @UserId
+        AND A.Status IN ('Approved', 'Pending')
+      WHERE L.IsActive = 1
+      GROUP BY L.Id, L.LeaveName, L.LeaveCount
+      ORDER BY L.LeaveName
     `);
 
     return res.status(200).json({
@@ -159,7 +165,8 @@ exports.getMyLeaves = async (req, res) => {
 exports.getOtherLeaveRequest = async (req, res) => {
   try {
     const { role, id } = req.user;
-    if (!["hr", "superadmin"].includes(role)) {
+    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    if (!allowedRoles.includes(role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
@@ -167,11 +174,19 @@ exports.getOtherLeaveRequest = async (req, res) => {
     }
     const pool = await poolPromise;
 
+    let roleFilter = "";
+    if (role === "ceo") {
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+    } else if (role === "manager") {
+      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+    }
+
     const result = await pool.request().query(`
       SELECT 
         A.Id,
         A.UserTaskMateAppId,
         U.Name AS EmployeeName,
+        R.RoleName AS EmployeeRole,
         L.LeaveName,
         A.FromDate,
         A.ToDate,
@@ -185,8 +200,11 @@ exports.getOtherLeaveRequest = async (req, res) => {
         ON A.LeaveTypeTaskMateAppId = L.Id
       JOIN UserTaskMateApp U
         ON A.UserTaskMateAppId = U.ID
+      JOIN RoleTaskMateApp R
+        ON U.RoleID = R.RoleId
       WHERE A.UserTaskMateAppId <> ${id}
       AND A.Status = 'PENDING'
+      ${roleFilter}
       ORDER BY A.Id DESC
     `);
 
@@ -200,14 +218,15 @@ exports.getOtherLeaveRequest = async (req, res) => {
   }
 };
 
-// update leave by hr / super admin
+// update leave by hr / super admin / ceo / manager
 exports.updateLeaves = async (req, res) => {
   try {
     const { role, id } = req.user;
     const { leaveId, status, hrReason } = req.body;
+    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
 
     // role check
-    if (!["hr", "superadmin"].includes(role)) {
+    if (!allowedRoles.includes(role)) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access",
@@ -222,6 +241,44 @@ exports.updateLeaves = async (req, res) => {
     }
 
     const pool = await poolPromise;
+
+    // Validate if the user is authorized to approve this specific leave
+    if (role !== "superadmin") {
+      const leaveRecord = await pool.request().query(`
+        SELECT R.RoleName 
+        FROM ApplyLeaveTaskMateApp A
+        JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
+        JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
+        WHERE A.Id = ${leaveId}
+      `);
+
+      if (leaveRecord.recordset.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Leave not found" });
+      }
+
+      const targetRole = leaveRecord.recordset[0].RoleName.toLowerCase();
+      let authorized = false;
+
+      if (
+        role === "ceo" &&
+        ["hr", "accountant", "manager"].includes(targetRole)
+      )
+        authorized = true;
+      if (role === "hr" && ["officesupport"].includes(targetRole))
+        authorized = true;
+      if (role === "manager" && ["admin", "employee"].includes(targetRole))
+        authorized = true;
+
+      if (!authorized) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to approve leave for this role",
+        });
+      }
+    }
+
     const request = pool
       .request()
       .input("LeaveId", sql.Int, leaveId)
@@ -271,9 +328,17 @@ exports.updateLeaves = async (req, res) => {
 exports.getPendingLeavesForHr = async (req, res) => {
   try {
     const { role } = req.user;
+    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
 
-    if (!["hr", "superadmin"].includes(role)) {
+    if (!allowedRoles.includes(role)) {
       return res.status(403).json({ success: false });
+    }
+
+    let roleFilter = "";
+    if (role === "ceo") {
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+    } else if (role === "manager") {
+      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
     }
 
     const pool = await poolPromise;
@@ -281,6 +346,7 @@ exports.getPendingLeavesForHr = async (req, res) => {
       SELECT 
         A.Id,
         U.Name AS EmployeeName,
+        R.RoleName AS EmployeeRole,
         L.LeaveName,
         A.FromDate,
         A.ToDate,
@@ -290,12 +356,423 @@ exports.getPendingLeavesForHr = async (req, res) => {
       FROM ApplyLeaveTaskMateApp A
       JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
       JOIN LeaveTypeTaskMateApp L ON A.LeaveTypeTaskMateAppId = L.Id
+      JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
       WHERE A.Status = 'PENDING'
+      ${roleFilter}
       ORDER BY A.Id DESC
     `);
 
     res.json({ success: true, data: result.recordset });
   } catch (err) {
     res.status(500).json({ success: false });
+  }
+};
+
+// get all leaves report (Pending, Approved, Rejected) for HR/Admin
+exports.getAllLeaveReport = async (req, res) => {
+  try {
+    const { role } = req.user;
+    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
+    // Optional: Filter by role if needed, or let HR see everyone. 
+    // Usually HR sees all, manager sees their own dept (we can use same roleFilter).
+    let roleFilter = "";
+    if (role === "ceo") {
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+    } else if (role === "manager") {
+      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+    }
+
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        A.Id,
+        U.Name AS EmployeeName,
+        R.RoleName AS EmployeeRole,
+        L.LeaveName,
+        A.FromDate,
+        A.ToDate,
+        A.TotalDays,
+        A.SessionDay,
+        A.Reason,
+        A.Status,
+        A.EntryTimeStamp
+      FROM ApplyLeaveTaskMateApp A
+      JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
+      JOIN LeaveTypeTaskMateApp L ON A.LeaveTypeTaskMateAppId = L.Id
+      JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
+      WHERE 1=1
+      ${roleFilter}
+      ORDER BY A.Id DESC
+    `);
+
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get All Leave Report Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Cancel Pending Leave (Employee Side)
+exports.cancelLeave = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const leaveId = req.params.id;
+
+    if (!leaveId) {
+      return res.status(400).json({ success: false, message: "leaveId is required" });
+    }
+
+    const pool = await poolPromise;
+    // Check if leave exists, belongs to user, and is PENDING
+    const checkResult = await pool.request()
+      .input("LeaveId", sql.Int, leaveId)
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT Status FROM ApplyLeaveTaskMateApp 
+        WHERE Id = @LeaveId AND UserTaskMateAppId = @UserId
+      `);
+
+    if (checkResult.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: "Leave not found or unauthorized" });
+    }
+
+    const currentStatus = checkResult.recordset[0].Status;
+    if (currentStatus.toUpperCase() !== "PENDING") {
+      return res.status(400).json({ success: false, message: "Only PENDING leaves can be cancelled" });
+    }
+
+    // Delete the leave record (or you can mark it as CANCELLED, but deleting is cleaner for pending)
+    await pool.request()
+      .input("LeaveId", sql.Int, leaveId)
+      .query(`DELETE FROM ApplyLeaveTaskMateApp WHERE Id = @LeaveId`);
+
+    res.json({ success: true, message: "Leave cancelled successfully" });
+  } catch (err) {
+    console.error("Cancel Leave Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get today's leaves for Manager/HR
+exports.getTodayLeaves = async (req, res) => {
+  try {
+    const { role } = req.user;
+    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
+    let roleFilter = "";
+    if (role === "ceo") {
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+    } else if (role === "manager") {
+      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+    }
+
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        A.Id,
+        U.Name AS EmployeeName,
+        U.ProfileImage,
+        R.RoleName AS EmployeeRole,
+        L.LeaveName,
+        A.FromDate,
+        A.ToDate,
+        A.TotalDays
+      FROM ApplyLeaveTaskMateApp A
+      JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
+      JOIN LeaveTypeTaskMateApp L ON A.LeaveTypeTaskMateAppId = L.Id
+      JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
+      WHERE A.Status = 'APPROVED'
+      AND CAST(GETDATE() AS DATE) BETWEEN CAST(A.FromDate AS DATE) AND CAST(A.ToDate AS DATE)
+      ${roleFilter}
+      ORDER BY A.FromDate ASC
+    `);
+
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get Today Leaves Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ======================== PHASE 2 & 3 APIs ========================
+
+// Get Holidays
+exports.getHolidays = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT Id, Title, HolidayDate, DayOfWeek
+      FROM HolidayTaskMateApp
+      WHERE IsActive = 1
+      ORDER BY HolidayDate ASC
+    `);
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get Holidays Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Punch In
+exports.punchIn = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    // Check if last punch was already IN
+    const lastLogResult = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT TOP 1 PunchType FROM AttendanceLogsTaskMateApp 
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+        ORDER BY PunchTime DESC
+      `);
+
+    if (lastLogResult.recordset.length > 0 && lastLogResult.recordset[0].PunchType === 'IN') {
+      return res.status(400).json({ success: false, message: "Already punched in. Please punch out first." });
+    }
+
+    // Insert IN log
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        INSERT INTO AttendanceLogsTaskMateApp (UserTaskMateAppId, AttendanceDate, PunchType, PunchTime)
+        VALUES (@UserId, CAST(GETDATE() AS DATE), 'IN', GETDATE())
+      `);
+
+    // Check if AttendanceTaskMateApp exists for today
+    const attendanceResult = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT Id FROM AttendanceTaskMateApp 
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+      `);
+
+    if (attendanceResult.recordset.length === 0) {
+      // First punch of the day: create row and mark LATE if after 9:30 AM
+      await pool.request()
+        .input("UserId", sql.Int, userId)
+        .query(`
+          INSERT INTO AttendanceTaskMateApp (UserTaskMateAppId, AttendanceDate, CheckInTime, Status)
+          VALUES (@UserId, CAST(GETDATE() AS DATE), GETDATE(), 
+            CASE WHEN CAST(GETDATE() AS TIME) > '09:30:00' THEN 'LATE' ELSE 'PRESENT' END
+          )
+        `);
+    }
+
+    res.json({ success: true, message: "Punched in successfully" });
+  } catch (err) {
+    console.error("Punch In Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Punch Out
+exports.punchOut = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    // Check if last punch was IN
+    const lastLogResult = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT TOP 1 PunchType, PunchTime FROM AttendanceLogsTaskMateApp 
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+        ORDER BY PunchTime DESC
+      `);
+
+    if (lastLogResult.recordset.length === 0 || lastLogResult.recordset[0].PunchType === 'OUT') {
+      return res.status(400).json({ success: false, message: "No active punch in found for today or already punched out" });
+    }
+
+    const lastInTime = lastLogResult.recordset[0].PunchTime;
+
+    // Insert OUT log
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        INSERT INTO AttendanceLogsTaskMateApp (UserTaskMateAppId, AttendanceDate, PunchType, PunchTime)
+        VALUES (@UserId, CAST(GETDATE() AS DATE), 'OUT', GETDATE())
+      `);
+
+    // Update CheckOutTime and calculate worked minutes
+    const result = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .input("LastInTime", sql.DateTime, lastInTime)
+      .query(`
+        UPDATE AttendanceTaskMateApp
+        SET CheckOutTime = GETDATE(),
+            TotalWorkedMinutes = ISNULL(TotalWorkedMinutes, 0) + DATEDIFF(minute, @LastInTime, GETDATE())
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(400).json({ success: false, message: "Failed to update attendance record" });
+    }
+
+    res.json({ success: true, message: "Punched out successfully" });
+  } catch (err) {
+    console.error("Punch Out Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get Today's Attendance
+exports.getTodayAttendance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT Id, CheckInTime, CheckOutTime, Status, TotalWorkedMinutes
+        FROM AttendanceTaskMateApp
+        WHERE UserTaskMateAppId = @UserId
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset.length > 0 ? result.recordset[0] : null
+    });
+  } catch (err) {
+    console.error("Get Today Attendance Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get Attendance History (with Date Filter)
+exports.getAttendanceHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { startDate, endDate } = req.query;
+    const pool = await poolPromise;
+
+    let dateFilter = "";
+    if (startDate && endDate) {
+      dateFilter = `AND AttendanceDate BETWEEN @StartDate AND @EndDate`;
+    } else {
+      // default to last 30 days
+      dateFilter = `AND AttendanceDate >= DATEADD(day, -30, CAST(GETDATE() AS DATE))`;
+    }
+
+    const request = pool.request().input("UserId", sql.Int, userId);
+
+    if (startDate && endDate) {
+      request.input("StartDate", sql.Date, startDate);
+      request.input("EndDate", sql.Date, endDate);
+    }
+
+    const result = await request.query(`
+        SELECT 
+          AttendanceDate,
+          CheckInTime,
+          CheckOutTime,
+          Status,
+          TotalWorkedMinutes
+        FROM AttendanceTaskMateApp
+      WHERE UserTaskMateAppId = @UserId
+      ${dateFilter}
+      ORDER BY AttendanceDate DESC
+    `);
+
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get Attendance History Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get My Payslips
+exports.getMyPayslips = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT Id, Month, Year, BasicSalary, NetPay, PdfUrl
+        FROM PayslipTaskMateApp
+        WHERE UserTaskMateAppId = @UserId
+        ORDER BY Year DESC, Month DESC
+      `);
+
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get Payslips Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get Today's Events (Birthdays and Work Anniversaries)
+exports.getTodayEvents = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT 
+        U.Name,
+        U.ProfileImage,
+        ED.DateOfBirth,
+        ED.DateOfJoining
+      FROM UserTaskMateApp U
+      INNER JOIN EmployeeDetailsTaskMateApp ED ON U.ID = ED.UserID
+      WHERE 
+        (MONTH(ED.DateOfBirth) = MONTH(GETDATE()) AND DAY(ED.DateOfBirth) = DAY(GETDATE()))
+        OR 
+        (MONTH(ED.DateOfJoining) = MONTH(GETDATE()) AND DAY(ED.DateOfJoining) = DAY(GETDATE()))
+    `);
+
+    const events = [];
+    const todayMonth = new Date().getMonth();
+    const todayDate = new Date().getDate();
+
+    result.recordset.forEach(user => {
+      if (user.DateOfBirth) {
+        const dob = new Date(user.DateOfBirth);
+        if (dob.getMonth() === todayMonth && dob.getDate() === todayDate) {
+          events.push({
+            type: "Birthday",
+            name: user.Name,
+            image: user.ProfileImage,
+          });
+        }
+      }
+      if (user.DateOfJoining) {
+        const doj = new Date(user.DateOfJoining);
+        if (doj.getMonth() === todayMonth && doj.getDate() === todayDate) {
+          const years = new Date().getFullYear() - doj.getFullYear();
+          if (years > 0) {
+            events.push({
+              type: "Work Anniversary",
+              name: user.Name,
+              image: user.ProfileImage,
+              years: years
+            });
+          }
+        }
+      }
+    });
+
+    res.json({ success: true, data: events });
+  } catch (err) {
+    console.error("Get Today Events Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

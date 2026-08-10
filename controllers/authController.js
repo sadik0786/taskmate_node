@@ -117,7 +117,7 @@ exports.checkEmailExists = async (req, res) => {
 };
 //------ REGISTER EMPLOYEE (Admin only)
 exports.registerEmployee = async (req, res) => {
-const { name, email, mobile, password, roleId, reportingId } = req.body;
+  const { name, email, mobile, password, roleId, reportingId } = req.body;
 
 
   try {
@@ -213,19 +213,24 @@ exports.getRoles = async (req, res) => {
     let roles = result.recordset || [];
     const userRole = (req.user?.role || "").toLowerCase().trim();
 
-     if (userRole === "ceo") {
-       roles = roles.filter((r) => {
-         const role = (r.RoleName || "").toLowerCase().trim();
-         return role === "hr" || role === "accountant" || role === "manager" || role === "superadmin";
-       });
-     } else if (userRole === "hr") {
-       roles = roles.filter((r) => {
-         const role = (r.RoleName || "").toLowerCase().trim();
-         return role === "admin" || role === "employee";
-       });
-     } else {
-       roles = [];
-     }
+    if (userRole === "ceo") {
+      roles = roles.filter((r) => {
+        const role = (r.RoleName || "").toLowerCase().trim();
+        return (
+          role === "hr" ||
+          role === "accountant" ||
+          role === "manager" ||
+          role === "superadmin"
+        );
+      });
+    } else if (userRole === "hr") {
+      roles = roles.filter((r) => {
+        const role = (r.RoleName || "").toLowerCase().trim();
+        return role === "admin" || role === "employee";
+      });
+    } else {
+      roles = [];
+    }
 
     return res.json({ success: true, data: roles });
   } catch (err) {
@@ -234,84 +239,85 @@ exports.getRoles = async (req, res) => {
   }
 };
 
-  // GET /users/by-role?role=superadmin
-  exports.getUsersByRole = async (req, res) => {
-    try {
-      const { role } = req.query;
-      if (!role) {
-        return res.status(400).json({
-          success: false,
-          error: "Role is required",
-        });
-      }
+// GET /users/by-role?role=superadmin
+exports.getUsersByRole = async (req, res) => {
+  try {
+    const { role } = req.query;
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        error: "Role is required",
+      });
+    }
 
-      const pool = await poolPromise;
-      const result = await pool.request().input("RoleName", sql.NVarChar, role)
-        .query(`
-      SELECT u.ID, u.Name 
+    const pool = await poolPromise;
+    const result = await pool.request().input("RoleName", sql.NVarChar, role)
+      .query(`
+      SELECT u.ID, u.Name, r.RoleName 
       FROM UserTaskMateApp u
       JOIN RoleTaskMateApp r ON u.RoleID = r.RoleId
       WHERE LOWER(r.RoleName) = LOWER(@RoleName)
     `);
 
-      res.json({
-        success: true,
-        data: result.recordset,
-      });
-    } catch (err) {
-      console.error("getUsersByRole error:", err);
-      res.status(500).json({
+    res.json({
+      success: true,
+      data: result.recordset,
+    });
+  } catch (err) {
+    console.error("getUsersByRole error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+};
+exports.getUsersByRoles = async (req, res) => {
+  try {
+    let roles = req.query.roles;
+    console.log("getUsersByRoles API hit! Roles received:", roles);
+
+    if (!roles) {
+      return res.status(400).json({
         success: false,
-        error: "Server error",
+        error: "Roles required",
       });
     }
-  };
-  exports.getUsersByRoles = async (req, res) => {
-    try {
-      let roles = req.query.roles;
 
-      if (!roles) {
-        return res.status(400).json({
-          success: false,
-          error: "Roles required",
-        });
-      }
+    if (!Array.isArray(roles)) {
+      roles = [roles];
+    }
 
-      if (!Array.isArray(roles)) {
-        roles = [roles];
-      }
+    const pool = await poolPromise;
+    const request = pool.request();
 
-      const pool = await poolPromise;
-      const request = pool.request();
+    roles.forEach((role, index) => {
+      request.input(`role${index}`, sql.NVarChar, role);
+    });
 
-      roles.forEach((role, index) => {
-        request.input(`role${index}`, sql.NVarChar, role);
-      });
+    const conditions = roles
+      .map((_, index) => `LOWER(r.RoleName) = LOWER(@role${index})`)
+      .join(" OR ");
 
-      const conditions = roles
-        .map((_, index) => `LOWER(r.RoleName) = LOWER(@role${index})`)
-        .join(" OR ");
-
-      const result = await request.query(`
-      SELECT u.ID, u.Name
+    const result = await request.query(`
+      SELECT u.ID, u.Name, r.RoleName
       FROM UserTaskMateApp u
       JOIN RoleTaskMateApp r ON u.RoleID = r.RoleId
       WHERE ${conditions}
       ORDER BY u.Name
     `);
 
-      res.json({
-        success: true,
-        data: result.recordset,
-      });
-    } catch (err) {
-      console.error("getUsersByRoles error:", err);
-      res.status(500).json({
-        success: false,
-        error: "Server error",
-      });
-    }
-  };
+    res.json({
+      success: true,
+      data: result.recordset,
+    });
+  } catch (err) {
+    console.error("getUsersByRoles error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+};
 
 
 //------ GET PROFILE

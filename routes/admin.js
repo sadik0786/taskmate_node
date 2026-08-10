@@ -13,6 +13,7 @@ const {
   listSubProjectsByProject,
   checkEmailExists,
   resetPassword,
+  updateEmployeeDetails,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -20,9 +21,9 @@ const router = express.Router();
 router.get(
   "/employee",
   authenticate,
-  authorize(["ceo", "superadmin", "admin"]),
   getEmployees,
 );
+router.post("/employee/update_details/:id", authenticate, updateEmployeeDetails);
 router.post("/employee/:id", authenticate, deleteEmployees);
 router.get(
   "/all_task_admin",

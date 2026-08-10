@@ -22,25 +22,19 @@ exports.getEmployees = async (req, res) => {
         R.RoleName, 
         U.ReportingID,
         R2.RoleName AS ReportingRole,
-        U2.Name AS AddedByName
+        U2.Name AS AddedByName,
+        ED.EmployeeID, ED.Gender, ED.DateOfBirth, ED.BloodGroup, 
+        ED.EmergencyContact, ED.Address, ED.Department, ED.DateOfJoining, 
+        ED.EmploymentType, ED.OfficeLocation, ED.Salary, ED.AadhaarNumber, 
+        ED.PANNumber, ED.BankDetails, ED.ProfileStatus
       FROM dbo.UserTaskMateApp U
       INNER JOIN dbo.RoleTaskMateApp R ON U.RoleID = R.RoleID
       LEFT JOIN dbo.UserTaskMateApp U2 ON U.ReportingID = U2.ID
       LEFT JOIN dbo.RoleTaskMateApp R2 ON U2.RoleID = R2.RoleID
+      LEFT JOIN dbo.EmployeeDetailsTaskMateApp ED ON U.ID = ED.UserID
     `;
 
-    if (user.role.toLowerCase() === "admin") {
-      // Admin sees only employees reporting to admin
-      query += ` WHERE U.ReportingID = @userId AND R.RoleName = 'employee'`;
-    } else if (
-      user.role.toLowerCase() === "superadmin" ||
-      user.role.toLowerCase() === "ceo"
-    ) {
-      // Superadmin and CEO sees all users they created (admins + employees)
-      query += ` WHERE R.RoleName IN ('admin', 'employee', 'hr', 'accountant', 'manager')`;
-    } else {
-      return res.status(403).json({ success: false, error: "Forbidden" });
-    }
+    query += ` WHERE R.RoleName != 'superadmin'`;
 
     const result = await pool
       .request()
@@ -53,6 +47,116 @@ exports.getEmployees = async (req, res) => {
     });
   } catch (err) {
     console.error("getEmployees error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+exports.updateEmployeeDetails = async (req, res) => {
+  try {
+    const { id } = req.params; // this is the UserID
+    const {
+      EmployeeID,
+      Gender,
+      DateOfBirth,
+      BloodGroup,
+      EmergencyContact,
+      Address,
+      Department,
+      DateOfJoining,
+      EmploymentType,
+      OfficeLocation,
+      Salary,
+      AadhaarNumber,
+      PANNumber,
+      BankDetails,
+      ProfileStatus,
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    // Check if details already exist for this user
+    const checkResult = await pool
+      .request()
+      .input("UserID", sql.Int, id)
+      .query(
+        `SELECT DetailID FROM dbo.EmployeeDetailsTaskMateApp WHERE UserID = @UserID`,
+      );
+
+    if (checkResult.recordset.length > 0) {
+      // Update existing record
+      await pool
+        .request()
+        .input("UserID", sql.Int, id)
+        .input("EmployeeID", sql.VarChar, EmployeeID)
+        .input("Gender", sql.VarChar, Gender)
+        .input(
+          "DateOfBirth",
+          sql.Date,
+          DateOfBirth ? new Date(DateOfBirth) : null,
+        )
+        .input("BloodGroup", sql.VarChar, BloodGroup)
+        .input("EmergencyContact", sql.VarChar, EmergencyContact)
+        .input("Address", sql.NVarChar, Address)
+        .input("Department", sql.VarChar, Department)
+        .input(
+          "DateOfJoining",
+          sql.Date,
+          DateOfJoining ? new Date(DateOfJoining) : null,
+        )
+        .input("EmploymentType", sql.VarChar, EmploymentType)
+        .input("OfficeLocation", sql.VarChar, OfficeLocation)
+        .input("Salary", sql.Decimal(18, 2), Salary ? parseFloat(Salary) : null)
+        .input("AadhaarNumber", sql.VarChar, AadhaarNumber)
+        .input("PANNumber", sql.VarChar, PANNumber)
+        .input("BankDetails", sql.NVarChar, BankDetails)
+        .input("ProfileStatus", sql.VarChar, ProfileStatus || "Active").query(`
+          UPDATE dbo.EmployeeDetailsTaskMateApp SET 
+            EmployeeID = @EmployeeID, Gender = @Gender, DateOfBirth = @DateOfBirth, 
+            BloodGroup = @BloodGroup, EmergencyContact = @EmergencyContact, 
+            Address = @Address, Department = @Department, DateOfJoining = @DateOfJoining, 
+            EmploymentType = @EmploymentType, OfficeLocation = @OfficeLocation, 
+            Salary = @Salary, AadhaarNumber = @AadhaarNumber, PANNumber = @PANNumber, 
+            BankDetails = @BankDetails, ProfileStatus = @ProfileStatus, UpdatedAt = GETDATE()
+          WHERE UserID = @UserID
+        `);
+    } else {
+      // Insert new record
+      await pool
+        .request()
+        .input("UserID", sql.Int, id)
+        .input("EmployeeID", sql.VarChar, EmployeeID)
+        .input("Gender", sql.VarChar, Gender)
+        .input(
+          "DateOfBirth",
+          sql.Date,
+          DateOfBirth ? new Date(DateOfBirth) : null,
+        )
+        .input("BloodGroup", sql.VarChar, BloodGroup)
+        .input("EmergencyContact", sql.VarChar, EmergencyContact)
+        .input("Address", sql.NVarChar, Address)
+        .input("Department", sql.VarChar, Department)
+        .input(
+          "DateOfJoining",
+          sql.Date,
+          DateOfJoining ? new Date(DateOfJoining) : null,
+        )
+        .input("EmploymentType", sql.VarChar, EmploymentType)
+        .input("OfficeLocation", sql.VarChar, OfficeLocation)
+        .input("Salary", sql.Decimal(18, 2), Salary ? parseFloat(Salary) : null)
+        .input("AadhaarNumber", sql.VarChar, AadhaarNumber)
+        .input("PANNumber", sql.VarChar, PANNumber)
+        .input("BankDetails", sql.NVarChar, BankDetails)
+        .input("ProfileStatus", sql.VarChar, ProfileStatus || "Active").query(`
+          INSERT INTO dbo.EmployeeDetailsTaskMateApp 
+          (UserID, EmployeeID, Gender, DateOfBirth, BloodGroup, EmergencyContact, Address, Department, DateOfJoining, EmploymentType, OfficeLocation, Salary, AadhaarNumber, PANNumber, BankDetails, ProfileStatus)
+          VALUES 
+          (@UserID, @EmployeeID, @Gender, @DateOfBirth, @BloodGroup, @EmergencyContact, @Address, @Department, @DateOfJoining, @EmploymentType, @OfficeLocation, @Salary, @AadhaarNumber, @PANNumber, @BankDetails, @ProfileStatus)
+        `);
+    }
+
+    res.json({ success: true, message: "Details updated successfully" });
+  } catch (err) {
+    console.error("updateEmployeeDetails error:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
