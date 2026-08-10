@@ -19,6 +19,11 @@ const {
   getMyPayslips,
   getTodayEvents,
   getAttendanceHistory,
+  getAdminAttendanceReport,
+  applyRegularization,
+  getMyRegularizations,
+  getPendingRegularizations,
+  updateRegularizationStatus,
 } = require("../controllers/hrmsController");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 
@@ -59,6 +64,30 @@ router.post("/attendance/punch-in", authenticate, punchIn);
 router.post("/attendance/punch-out", authenticate, punchOut);
 router.get("/attendance/today", authenticate, getTodayAttendance);
 router.get("/attendance/history", authenticate, getAttendanceHistory);
+
+// Admin Attendance Report
+router.get(
+  "/attendance/admin-report",
+  authenticate,
+  authorize(["superadmin", "hr", "ceo", "manager"]),
+  getAdminAttendanceReport
+);
+
+// Regularization Routes
+router.post("/attendance/regularize", authenticate, applyRegularization);
+router.get("/attendance/regularize/my-requests", authenticate, getMyRegularizations);
+router.get(
+  "/attendance/regularize/pending",
+  authenticate,
+  authorize(["superadmin", "hr", "ceo", "manager"]),
+  getPendingRegularizations
+);
+router.put(
+  "/attendance/regularize/status",
+  authenticate,
+  authorize(["superadmin", "hr", "ceo", "manager"]),
+  updateRegularizationStatus
+);
 
 router.get("/my-payslips", authenticate, getMyPayslips);
 
