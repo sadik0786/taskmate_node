@@ -266,14 +266,50 @@ exports.getAttendanceHistory = async (req, res) => {
           CheckInTime,
           CheckOutTime,
           Status,
-          TotalWorkedMinutes
+          TotalWorkedMinutes,
+          TotalBreakMinutes
         FROM AttendanceTaskMateApp
       WHERE UserTaskMateAppId = @UserId
       ${dateFilter}
       ORDER BY AttendanceDate DESC
     `);
+    // Fetch Holidays
+    const holidaysResult = await pool.request().query(`
+      SELECT HolidayDate 
+      FROM HolidayTaskMateApp 
+      WHERE IsActive = 1
+    `);
+    const holidayDates = holidaysResult.recordset.map(r => {
+      const d = new Date(r.HolidayDate);
+      return d.toISOString().split('T')[0];
+    });
 
-    res.json({ success: true, data: result.recordset });
+    // Fetch Approved Leaves for this user
+    const leavesResult = await pool.request().input("UserId", sql.Int, userId).query(`
+      SELECT FromDate, ToDate 
+      FROM ApplyLeaveTaskMateApp 
+      WHERE UserTaskMateAppId = @UserId 
+        AND Status = 'APPROVED'
+    `);
+    
+    let leaveDates = [];
+    leavesResult.recordset.forEach(r => {
+      let curr = new Date(r.FromDate);
+      let end = new Date(r.ToDate);
+      while(curr <= end) {
+        leaveDates.push(curr.toISOString().split('T')[0]);
+        curr.setDate(curr.getDate() + 1);
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      data: result.recordset,
+      summary: {
+        leaveDates,
+        holidayDates
+      }
+    });
   } catch (err) {
     console.error("Get Attendance History Error:", err);
     res.status(500).json({ success: false, message: "Server error" });
