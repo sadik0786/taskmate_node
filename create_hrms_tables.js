@@ -28,8 +28,24 @@ async function createTables() {
           CheckInTime DATETIME,
           CheckOutTime DATETIME,
           Status NVARCHAR(50) DEFAULT 'PRESENT',
+          TotalWorkedMinutes INT DEFAULT 0,
+          TotalBreakMinutes INT DEFAULT 0,
           EntryTimeStamp DATETIME DEFAULT GETDATE()
       );
+    `);
+
+    console.log("Checking for missing columns in AttendanceTaskMateApp...");
+    await pool.request().query(`
+      IF NOT EXISTS(SELECT * FROM sys.columns 
+        WHERE Name = N'TotalBreakMinutes' AND Object_ID = Object_ID(N'AttendanceTaskMateApp'))
+      BEGIN
+          ALTER TABLE AttendanceTaskMateApp ADD TotalBreakMinutes INT DEFAULT 0;
+      END
+      IF NOT EXISTS(SELECT * FROM sys.columns 
+        WHERE Name = N'TotalWorkedMinutes' AND Object_ID = Object_ID(N'AttendanceTaskMateApp'))
+      BEGIN
+          ALTER TABLE AttendanceTaskMateApp ADD TotalWorkedMinutes INT DEFAULT 0;
+      END
     `);
 
     console.log("Creating PayslipTaskMateApp table...");

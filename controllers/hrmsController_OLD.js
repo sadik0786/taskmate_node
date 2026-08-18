@@ -594,8 +594,8 @@ exports.punchOut = async (req, res) => {
         ORDER BY PunchTime DESC
       `);
 
-    if (lastLogResult.recordset.length === 0 || lastLogResult.recordset[0].PunchType === 'OUT') {
-      return res.status(400).json({ success: false, message: "No active punch in found for today or already punched out" });
+    if (lastLogResult.recordset.length === 0 || lastLogResult.recordset[0].PunchType === 'OUT' || lastLogResult.recordset[0].PunchType === 'BREAK_START') {
+      return res.status(400).json({ success: false, message: "No active punch in found for today, already punched out, or on break" });
     }
 
     const lastInTime = lastLogResult.recordset[0].PunchTime;
@@ -631,6 +631,100 @@ exports.punchOut = async (req, res) => {
   }
 };
 
+// Take Break
+exports.takeBreak = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    const lastLogResult = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT TOP 1 PunchType, PunchTime FROM AttendanceLogsTaskMateApp 
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+        ORDER BY PunchTime DESC
+      `);
+
+    if (lastLogResult.recordset.length === 0 || lastLogResult.recordset[0].PunchType === 'OUT' || lastLogResult.recordset[0].PunchType === 'BREAK_START') {
+      return res.status(400).json({ success: false, message: "Cannot take break right now" });
+    }
+
+    const lastInTime = lastLogResult.recordset[0].PunchTime;
+
+    // Insert BREAK_START log
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        INSERT INTO AttendanceLogsTaskMateApp (UserTaskMateAppId, AttendanceDate, PunchType, PunchTime)
+        VALUES (@UserId, CAST(GETDATE() AS DATE), 'BREAK_START', GETDATE())
+      `);
+
+    // Update TotalWorkedMinutes up to this break
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .input("LastInTime", sql.DateTime, lastInTime)
+      .query(`
+        UPDATE AttendanceTaskMateApp
+        SET TotalWorkedMinutes = ISNULL(TotalWorkedMinutes, 0) + DATEDIFF(minute, @LastInTime, GETDATE())
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+      `);
+
+    res.json({ success: true, message: "Break started successfully" });
+  } catch (err) {
+    console.error("Take Break Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// End Break
+exports.endBreak = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    const lastLogResult = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        SELECT TOP 1 PunchType, PunchTime FROM AttendanceLogsTaskMateApp 
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+        ORDER BY PunchTime DESC
+      `);
+
+    if (lastLogResult.recordset.length === 0 || lastLogResult.recordset[0].PunchType !== 'BREAK_START') {
+      return res.status(400).json({ success: false, message: "Not currently on break" });
+    }
+
+    const breakStartTime = lastLogResult.recordset[0].PunchTime;
+
+    // Insert BREAK_END log
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .query(`
+        INSERT INTO AttendanceLogsTaskMateApp (UserTaskMateAppId, AttendanceDate, PunchType, PunchTime)
+        VALUES (@UserId, CAST(GETDATE() AS DATE), 'BREAK_END', GETDATE())
+      `);
+
+    // Update TotalBreakMinutes
+    await pool.request()
+      .input("UserId", sql.Int, userId)
+      .input("BreakStartTime", sql.DateTime, breakStartTime)
+      .query(`
+        UPDATE AttendanceTaskMateApp
+        SET TotalBreakMinutes = ISNULL(TotalBreakMinutes, 0) + DATEDIFF(minute, @BreakStartTime, GETDATE())
+        WHERE UserTaskMateAppId = @UserId 
+        AND AttendanceDate = CAST(GETDATE() AS DATE)
+      `);
+
+    res.json({ success: true, message: "Break ended successfully" });
+  } catch (err) {
+    console.error("End Break Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // Get Today's Attendance
 exports.getTodayAttendance = async (req, res) => {
   try {
@@ -638,7 +732,7 @@ exports.getTodayAttendance = async (req, res) => {
     const pool = await poolPromise;
 
     const result = await pool.request().input("UserId", sql.Int, userId).query(`
-        SELECT Id, CheckInTime, CheckOutTime, Status, TotalWorkedMinutes,
+        SELECT Id, CheckInTime, CheckOutTime, Status, TotalWorkedMinutes, TotalBreakMinutes,
           (SELECT TOP 1 PunchType FROM AttendanceLogsTaskMateApp 
            WHERE UserTaskMateAppId = @UserId AND AttendanceDate = CAST(GETDATE() AS DATE) 
            ORDER BY PunchTime DESC) AS CurrentPunchState
@@ -647,9 +741,18 @@ exports.getTodayAttendance = async (req, res) => {
         AND AttendanceDate = CAST(GETDATE() AS DATE)
       `);
 
+    let data = result.recordset.length > 0 ? result.recordset[0] : null;
+    if (data) {
+      data.isOnBreak = data.CurrentPunchState === 'BREAK_START';
+      // Treat BREAK_END as IN so frontend sees it as punched in
+      if (data.CurrentPunchState === 'BREAK_END') {
+        data.CurrentPunchState = 'IN';
+      }
+    }
+
     res.json({
       success: true,
-      data: result.recordset.length > 0 ? result.recordset[0] : null
+      data: data
     });
   } catch (err) {
     console.error("Get Today Attendance Error:", err);

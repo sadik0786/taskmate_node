@@ -3,6 +3,12 @@ const router = express.Router();
 
 const {
   getAllEmployee,
+  getHolidays,
+  getMyPayslips,
+  getTodayEvents,
+} = require("../controllers/hrms/miscController");
+
+const {
   getAllLeaveType,
   applyLeave,
   getMyLeaves,
@@ -12,19 +18,25 @@ const {
   getAllLeaveReport,
   cancelLeave,
   getTodayLeaves,
-  getHolidays,
+} = require("../controllers/hrms/leaveController");
+
+const {
   punchIn,
   punchOut,
+  takeBreak,
+  endBreak,
   getTodayAttendance,
-  getMyPayslips,
-  getTodayEvents,
   getAttendanceHistory,
   getAdminAttendanceReport,
+} = require("../controllers/hrms/attendanceController");
+
+const {
   applyRegularization,
   getMyRegularizations,
   getPendingRegularizations,
   updateRegularizationStatus,
-} = require("../controllers/hrmsController");
+} = require("../controllers/hrms/regularizationController");
+
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 
 router.get("/all-employee", authenticate, getAllEmployee);
@@ -62,6 +74,8 @@ router.get("/holidays", authenticate, getHolidays);
 
 router.post("/attendance/punch-in", authenticate, punchIn);
 router.post("/attendance/punch-out", authenticate, punchOut);
+router.post("/attendance/take-break", authenticate, takeBreak);
+router.post("/attendance/end-break", authenticate, endBreak);
 router.get("/attendance/today", authenticate, getTodayAttendance);
 router.get("/attendance/history", authenticate, getAttendanceHistory);
 
