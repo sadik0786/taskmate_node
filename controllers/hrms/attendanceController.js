@@ -341,7 +341,7 @@ exports.getAdminAttendanceReport = async (req, res) => {
         LEFT JOIN AttendanceTaskMateApp A 
           ON U.ID = A.UserTaskMateAppId 
           AND A.AttendanceDate = CAST(@FilterDate AS DATE)
-        WHERE U.ID != 1 -- Assuming 1 is superadmin, optional
+        WHERE U.ID != 1 -- Assuming 1 is manager, optional
         ORDER BY U.Name ASC
       `);
 

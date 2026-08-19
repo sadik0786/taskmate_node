@@ -2,7 +2,7 @@ const ROLES = {
   CEO: "ceo",
   HR: "hr",
   Accountant: "accountant",
-  SuperAdmin: "superadmin",
+  manager: "manager",
   Admin: "admin",
   Employee: "employee",
 };
@@ -10,7 +10,7 @@ const ROLE_IDS = {
   CEO: 1,
   HR: 2,
   Accountant: 3,
-  SuperAdmin: 4,
+  manager: 4,
   Admin: 5,
   Employee: 6,
 };

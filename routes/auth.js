@@ -42,7 +42,7 @@ router.get("/admins", authenticate, authorize(["ceo", "hr"]), admins);
 router.post(
   "/checkemail",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   checkEmailExists
 );
 router.post(

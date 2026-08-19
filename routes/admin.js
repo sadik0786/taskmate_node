@@ -28,21 +28,21 @@ router.post("/employee/:id", authenticate, deleteEmployees);
 router.get(
   "/all_task_admin",
   authenticate,
-  authorize(["superadmin"]),
+  authorize(["manager"]),
   getAllAdminTasks
 );
-// Superadmin  can see by id admin / employee tasks
+// manager  can see by id admin / employee tasks
 router.get(
   "/emp_tasks/:empId",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   getEmployeeTasks
 );
-// Superadmin or Admin can see list of all tasks
+// manager or Admin can see list of all tasks
 router.get(
   "/all_task_emp",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   getAllEmployeeTasks
 );
 // ---------------- add project
@@ -63,13 +63,13 @@ router.get("/listSubProjectsByProject", authenticate, listSubProjectsByProject);
 router.post(
   "/check_email",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   checkEmailExists
 );
 router.post(
   "/reset_password",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   resetPassword
 );
 

@@ -34,7 +34,7 @@ exports.getEmployees = async (req, res) => {
       LEFT JOIN dbo.EmployeeDetailsTaskMateApp ED ON U.ID = ED.UserID
     `;
 
-    query += ` WHERE R.RoleName != 'superadmin'`;
+    query += ` WHERE R.RoleName != 'manager'`;
 
     const result = await pool
       .request()
@@ -160,7 +160,7 @@ exports.updateEmployeeDetails = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
-// Superadmin  can delete admin / employee
+// manager  can delete admin / employee
 // admin delete only they added
 exports.deleteEmployees = async (req, res) => {
   try {
@@ -185,8 +185,8 @@ exports.deleteEmployees = async (req, res) => {
     const targetUser = targetUserResult.recordset[0];
 
     // Check permissions
-    if (userRole === "superadmin") {
-      // superadmin can delete anyone
+    if (userRole === "manager") {
+      // manager can delete anyone
     } else if (userRole === "admin") {
       if (!(targetUser.RoleID === 3 && targetUser.CreatedBy === userId)) {
         return res.status(403).json({ success: false, error: "Access denied" });
@@ -214,7 +214,7 @@ exports.deleteEmployees = async (req, res) => {
   }
 };
 
-// Superadmin  can see admin / employee tasks
+// manager  can see admin / employee tasks
 exports.getEmployeeTasks = async (req, res) => {
   try {
     const { empId } = req.params;
@@ -301,7 +301,7 @@ exports.getAllEmployeeTasks = async (req, res) => {
     if (userRole === "admin") {
       query += " AND U.ReportingID = @UserId AND U.RoleID = 3";
     }
-    // Superadmin sees all tasks (no additional filter)
+    // manager sees all tasks (no additional filter)
     query += " ORDER BY T.CreatedAt DESC";
 
     const result = await pool
@@ -319,7 +319,7 @@ exports.getAllEmployeeTasks = async (req, res) => {
 exports.getAllAdminTasks = async (req, res) => {
   try {
     const pool = await poolPromise;
-    // Superadmin → fetch tasks of Admins (RoleID = 2)
+    // manager → fetch tasks of Admins (RoleID = 2)
     const query = `
       SELECT 
         T.TaskId,
@@ -532,7 +532,7 @@ exports.checkEmailExists = async (req, res) => {
         });
       }
     }
-    // Superadmin can reset passwords for anyone (admins and employees)
+    // manager can reset passwords for anyone (admins and employees)
 
     res.json({
       success: true,
@@ -594,7 +594,7 @@ exports.resetPassword = async (req, res) => {
         });
       }
     }
-    // Superadmin can reset anyone's password
+    // manager can reset anyone's password
 
     // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);

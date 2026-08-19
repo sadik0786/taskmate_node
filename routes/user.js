@@ -19,16 +19,16 @@ router.get("/", authenticate, filterDataByRole, getUsersByHierarchy);
 router.get(
   "/:id",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   getUserById
 );
-router.post("/", authenticate, authorize(["superadmin", "admin"]), createUser);
+router.post("/", authenticate, authorize(["manager", "admin"]), createUser);
 router.post(
   "/:id",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   updateUser
 );
-router.post("/:id", authenticate, authorize(["superadmin"]), deleteUser); // Only superadmin can delete
+router.post("/:id", authenticate, authorize(["manager"]), deleteUser); // Only manager can delete
 
 module.exports = router;

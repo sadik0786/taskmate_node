@@ -19,12 +19,12 @@ router.post("/leave-apply", authenticate, applyLeave);
 router.get(
   "/other-leaves-request",
   authenticate,
-  authorize(["superadmin", "hr"]),
+  authorize(["manager", "hr"]),
   getOtherLeaveRequest
 );
 router.put(
   "/update-leave-status",
-  authorize(["superadmin", "hr"]),
+  authorize(["manager", "hr"]),
   authenticate,
   updateLeaves
 );

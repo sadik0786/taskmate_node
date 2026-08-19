@@ -54,7 +54,7 @@ exports.admins = async (req, res) => {
         U.Email
       FROM dbo.UserTaskMateApp U
       INNER JOIN dbo.RoleTaskMateApp R ON U.RoleID = R.RoleID
-      WHERE R.RoleName in( 'hr','accountant','superadmin','admin','employee')
+      WHERE R.RoleName in( 'hr','accountant','manager','admin','employee')
       ORDER BY U.Name
     `;
 
@@ -144,13 +144,13 @@ exports.registerEmployee = async (req, res) => {
     // Role Hierarchy Logic
     if (creatorRole === ROLES.CEO) {
       if (
-        ![ROLE_IDS.HR, ROLE_IDS.Accountant, ROLE_IDS.SuperAdmin].includes(
+        ![ROLE_IDS.HR, ROLE_IDS.Accountant, ROLE_IDS.manager].includes(
           newRoleId,
         )
       ) {
         return res.status(403).json({
           success: false,
-          error: "CEO can only create HR, Accountant, or SuperAdmin",
+          error: "CEO can only create HR, Accountant, or manager",
         });
       }
     } else if (creatorRole === ROLES.HR) {
@@ -220,7 +220,7 @@ exports.getRoles = async (req, res) => {
           role === "hr" ||
           role === "accountant" ||
           role === "manager" ||
-          role === "superadmin"
+          role === "manager"
         );
       });
     } else if (userRole === "hr") {
@@ -239,7 +239,7 @@ exports.getRoles = async (req, res) => {
   }
 };
 
-// GET /users/by-role?role=superadmin
+// GET /users/by-role?role=manager
 exports.getUsersByRole = async (req, res) => {
   try {
     const { role } = req.query;
@@ -392,7 +392,7 @@ exports.login = async (req, res) => {
 
     // Map DB role names to canonical names
     const roleMap = {
-      superadmin: "superadmin",
+      manager: "manager",
       admin: "admin",
       employee: "employee",
     };

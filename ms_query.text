@@ -7,7 +7,7 @@ end;
 
 INSERT INTO dbo.RoleMasterTrackifyApp (RoleName, IsActive, EntryTimeStamp)
 VALUES
-('superAdmin', 1, GETDATE()),
+('Manager', 1, GETDATE()),
 ('admin', 1, GETDATE()),
 ('employee', 1, GETDATE());
 

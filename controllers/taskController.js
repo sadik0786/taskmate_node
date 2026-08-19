@@ -54,8 +54,8 @@ exports.getTasksByHierarchy = async (req, res) => {
     let request = pool.request();
 
     // ✅ Apply role-based hierarchical filtering
-    if (userRole === "superadmin") {
-      // Superadmin sees all tasks
+    if (userRole === "manager") {
+      // manager sees all tasks
       query += ` AND 1=1`;
     } else if (userRole === "admin") {
       // Admin sees: their own tasks + tasks of employees they created
@@ -303,8 +303,8 @@ exports.deleteTask = async (req, res) => {
 async function checkTaskAccess(currentUser, task, pool) {
   const currentRole = currentUser.role.toLowerCase();
 
-  if (currentRole === "superadmin") {
-    return true; // Superadmin can access all tasks
+  if (currentRole === "manager") {
+    return true; // manager can access all tasks
   } else if (currentRole === "admin") {
     // Admin can access: their tasks + tasks of their employees
     if (task.UserId === currentUser.id) return true; // Own task

@@ -46,26 +46,26 @@ router.post("/leave-apply", authenticate, applyLeave);
 router.get(
   "/other-leaves-request",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   getOtherLeaveRequest
 );
 router.put(
   "/update-leave-status",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   updateLeaves
 );
 router.get(
   "/all-leaves-report",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   getAllLeaveReport
 );
 router.delete("/leave-cancel/:id", authenticate, cancelLeave);
 router.get(
   "/today-leaves",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   getTodayLeaves
 );
 
@@ -83,7 +83,7 @@ router.get("/attendance/history", authenticate, getAttendanceHistory);
 router.get(
   "/attendance/admin-report",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   getAdminAttendanceReport
 );
 
@@ -93,13 +93,13 @@ router.get("/attendance/regularize/my-requests", authenticate, getMyRegularizati
 router.get(
   "/attendance/regularize/pending",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   getPendingRegularizations
 );
 router.put(
   "/attendance/regularize/status",
   authenticate,
-  authorize(["superadmin", "hr", "ceo", "manager"]),
+  authorize(["manager", "hr", "ceo", "manager"]),
   updateRegularizationStatus
 );
 

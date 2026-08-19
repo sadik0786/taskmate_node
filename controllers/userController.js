@@ -21,8 +21,8 @@ exports.getUsersByHierarchy = async (req, res) => {
     let request = pool.request();
 
     // ✅ Apply role-based filtering
-    if (userRole === "superadmin") {
-      // Superadmin sees all users
+    if (userRole === "manager") {
+      // manager sees all users
       query += ` AND u.ID != @currentUserId`; // Optional: exclude self
       request.input("currentUserId", sql.Int, user.id);
     } else if (userRole === "admin") {
@@ -89,7 +89,7 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// ------------------ CREATE USER (Admin/Superadmin only) ------------------//
+// ------------------ CREATE USER (Admin/manager only) ------------------//
 exports.createUser = async (req, res) => {
   const { name, email, mobile, password, roleId } = req.body;
 
@@ -217,7 +217,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// ------------------ DELETE USER (Superadmin only) ------------------//
+// ------------------ DELETE USER (manager only) ------------------//
 exports.deleteUser = async (req, res) => {
   const userId = req.params.id;
 
@@ -258,8 +258,8 @@ exports.deleteUser = async (req, res) => {
 async function checkUserAccess(currentUser, targetUser, pool) {
   const currentRole = currentUser.role.toLowerCase();
 
-  if (currentRole === "superadmin") {
-    return true; // Superadmin can access all users
+  if (currentRole === "manager") {
+    return true; // manager can access all users
   } else if (currentRole === "admin") {
     // Admin can access themselves and users they created
     return (

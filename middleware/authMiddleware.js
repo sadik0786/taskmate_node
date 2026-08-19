@@ -56,7 +56,7 @@ function filterDataByRole(req, res, next) {
   const userRole = (req.user.role || "").toLowerCase();
   req.taskFilter = {};
 
-  if (userRole === "superadmin") {
+  if (userRole === "manager") {
     req.taskFilter.condition = "1=1"; // see all tasks
   } else if (userRole === "admin" || userRole === "employee") {
     req.taskFilter.condition = "t.UserId = @userId";

@@ -133,7 +133,7 @@ exports.getMyLeaves = async (req, res) => {
 exports.getOtherLeaveRequest = async (req, res) => {
   try {
     const { role, id } = req.user;
-    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    const allowedRoles = ["hr", "manager", "ceo", "manager"];
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({
         success: false,
@@ -191,7 +191,7 @@ exports.updateLeaves = async (req, res) => {
   try {
     const { role, id } = req.user;
     const { leaveId, status, hrReason } = req.body;
-    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     // role check
     if (!allowedRoles.includes(role)) {
@@ -211,7 +211,7 @@ exports.updateLeaves = async (req, res) => {
     const pool = await poolPromise;
 
     // Validate if the user is authorized to approve this specific leave
-    if (role !== "superadmin") {
+    if (role !== "manager") {
       const leaveRecord = await pool.request().query(`
         SELECT R.RoleName 
         FROM ApplyLeaveTaskMateApp A
@@ -296,7 +296,7 @@ exports.updateLeaves = async (req, res) => {
 exports.getPendingLeavesForHr = async (req, res) => {
   try {
     const { role } = req.user;
-    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({ success: false });
@@ -340,7 +340,7 @@ exports.getPendingLeavesForHr = async (req, res) => {
 exports.getAllLeaveReport = async (req, res) => {
   try {
     const { role } = req.user;
-    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
@@ -430,7 +430,7 @@ exports.cancelLeave = async (req, res) => {
 exports.getTodayLeaves = async (req, res) => {
   try {
     const { role } = req.user;
-    const allowedRoles = ["hr", "superadmin", "ceo", "manager"];
+    const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });

@@ -39,13 +39,13 @@ router.post("/login", login);
 router.get(
   "/admins",
   authenticate,
-  authorize(["ceo", "hr", "superadmin"]),
+  authorize(["ceo", "hr", "manager"]),
   admins,
 );
 router.post(
   "/checkemail",
   authenticate,
-  authorize(["superadmin", "admin"]),
+  authorize(["manager", "admin"]),
   checkEmailExists
 );
 router.post(
