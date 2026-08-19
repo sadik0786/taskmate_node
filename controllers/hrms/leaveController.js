@@ -5,20 +5,56 @@ exports.getAllLeaveType = async (req, res) => {
   try {
     const pool = await poolPromise;
 
-    const userId = req.user.id;
-    // Get the task
-    const result = await pool.request().input("UserId", sql.Int, userId).query(`
+    let targetUserId = req.user.id;
+    const { financialYearId, employeeId } = req.query;
+
+    if (employeeId) {
+      const allowedRoles = ["hr", "manager", "ceo"];
+      if (allowedRoles.includes(req.user.role)) {
+        targetUserId = parseInt(employeeId, 10);
+      }
+    }
+
+    let dateFilter = "";
+    let joinCarryForward = "";
+
+    const request = pool.request().input("UserId", sql.Int, targetUserId);
+
+    if (financialYearId) {
+      const fyQuery = await pool.request()
+        .input("FyId", sql.Int, financialYearId)
+        .query("SELECT StartDate, EndDate FROM FinancialYearTaskMateApp WHERE Id = @FyId");
+
+      if (fyQuery.recordset.length > 0) {
+        const { StartDate, EndDate } = fyQuery.recordset[0];
+        request.input("StartDate", sql.Date, StartDate);
+        request.input("EndDate", sql.Date, EndDate);
+        dateFilter = "AND A.FromDate >= @StartDate AND A.FromDate <= @EndDate";
+
+        request.input("FyId", sql.Int, financialYearId);
+        joinCarryForward = `
+          LEFT JOIN LeaveCarryForwardTaskMateApp CF
+            ON L.Id = CF.LeaveTypeTaskMateAppId
+            AND CF.UserTaskMateAppId = @UserId
+            AND CF.ToFinancialYearId = @FyId
+        `;
+      }
+    }
+
+    const result = await request.query(`
       SELECT 
         L.Id,
         L.LeaveName,
-        L.LeaveCount - ISNULL(SUM(A.TotalDays), 0) AS LeaveCount
+        L.LeaveCount ${financialYearId ? '+ ISNULL(CF.CarriedForwardDays, 0)' : ''} - ISNULL(SUM(A.TotalDays), 0) AS LeaveCount
       FROM LeaveTypeTaskMateApp L
       LEFT JOIN ApplyLeaveTaskMateApp A 
         ON L.Id = A.LeaveTypeTaskMateAppId 
         AND A.UserTaskMateAppId = @UserId
         AND A.Status IN ('Approved', 'Pending')
+        ${dateFilter}
+      ${joinCarryForward}
       WHERE L.IsActive = 1
-      GROUP BY L.Id, L.LeaveName, L.LeaveCount
+      GROUP BY L.Id, L.LeaveName, L.LeaveCount ${financialYearId ? ', CF.CarriedForwardDays' : ''}
       ORDER BY L.LeaveName
     `);
 
@@ -41,10 +77,6 @@ exports.applyLeave = async (req, res) => {
     const userId = req.user.id;
     const { leaveTypeId, fromDate, toDate, days, sessionDay, reason } =
       req.body;
-
-    // console.log("AUTH USER:", req.user);
-    // console.log("HEADERS:", req.headers.authorization);
-    // console.log("BODY:", req.body);
 
     if (!leaveTypeId || !fromDate || !toDate || !days) {
       return res.status(400).json({
@@ -99,7 +131,25 @@ exports.getMyLeaves = async (req, res) => {
     const userId = req.user.id;
     const pool = await poolPromise;
 
-    const result = await pool.request().input("UserId", sql.Int, userId).query(`
+    const { financialYearId } = req.query;
+    let dateFilter = "";
+
+    const request = pool.request().input("UserId", sql.Int, userId);
+
+    if (financialYearId) {
+      const fyQuery = await pool.request()
+        .input("FyId", sql.Int, financialYearId)
+        .query("SELECT StartDate, EndDate FROM FinancialYearTaskMateApp WHERE Id = @FyId");
+
+      if (fyQuery.recordset.length > 0) {
+        const { StartDate, EndDate } = fyQuery.recordset[0];
+        request.input("StartDate", sql.Date, StartDate);
+        request.input("EndDate", sql.Date, EndDate);
+        dateFilter = "AND A.FromDate >= @StartDate AND A.FromDate <= @EndDate";
+      }
+    }
+
+    const result = await request.query(`
         SELECT 
           A.Id,
           A.UserTaskMateAppId,
@@ -111,11 +161,15 @@ exports.getMyLeaves = async (req, res) => {
           A.SessionDay,
           A.Reason,
           A.Status,
-          A.EntryTimeStamp
+          A.EntryTimeStamp,
+          U2.Name AS ApprovedByName
         FROM ApplyLeaveTaskMateApp A
         JOIN LeaveTypeTaskMateApp L
           ON A.LeaveTypeTaskMateAppId = L.Id
+        LEFT JOIN UserTaskMateApp U2
+          ON A.ApprovedBy = U2.ID
         WHERE A.UserTaskMateAppId = @UserId
+        ${dateFilter}
         ORDER BY A.Id DESC
       `);
 
@@ -149,7 +203,25 @@ exports.getOtherLeaveRequest = async (req, res) => {
       roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
     }
 
-    const result = await pool.request().query(`
+    const { financialYearId } = req.query;
+    let dateFilter = "";
+
+    const request = pool.request();
+
+    if (financialYearId) {
+      const fyQuery = await pool.request()
+        .input("FyId", sql.Int, financialYearId)
+        .query("SELECT StartDate, EndDate FROM FinancialYearTaskMateApp WHERE Id = @FyId");
+
+      if (fyQuery.recordset.length > 0) {
+        const { StartDate, EndDate } = fyQuery.recordset[0];
+        request.input("StartDate", sql.Date, StartDate);
+        request.input("EndDate", sql.Date, EndDate);
+        dateFilter = "AND A.FromDate >= @StartDate AND A.FromDate <= @EndDate";
+      }
+    }
+
+    const result = await request.query(`
       SELECT 
         A.Id,
         A.UserTaskMateAppId,
@@ -173,6 +245,7 @@ exports.getOtherLeaveRequest = async (req, res) => {
       WHERE A.UserTaskMateAppId <> ${id}
       AND A.Status = 'PENDING'
       ${roleFilter}
+      ${dateFilter}
       ORDER BY A.Id DESC
     `);
 
@@ -193,7 +266,6 @@ exports.updateLeaves = async (req, res) => {
     const { leaveId, status, hrReason } = req.body;
     const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
-    // role check
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({
         success: false,
@@ -210,7 +282,6 @@ exports.updateLeaves = async (req, res) => {
 
     const pool = await poolPromise;
 
-    // Validate if the user is authorized to approve this specific leave
     if (role !== "manager") {
       const leaveRecord = await pool.request().query(`
         SELECT R.RoleName 
@@ -346,8 +417,6 @@ exports.getAllLeaveReport = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
-    // Optional: Filter by role if needed, or let HR see everyone. 
-    // Usually HR sees all, manager sees their own dept (we can use same roleFilter).
     let roleFilter = "";
     if (role === "ceo") {
       roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
@@ -355,8 +424,26 @@ exports.getAllLeaveReport = async (req, res) => {
       roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
     }
 
+    const { financialYearId } = req.query;
+    let dateFilter = "";
+
     const pool = await poolPromise;
-    const result = await pool.request().query(`
+    const request = pool.request();
+
+    if (financialYearId) {
+      const fyQuery = await pool.request()
+        .input("FyId", sql.Int, financialYearId)
+        .query("SELECT StartDate, EndDate FROM FinancialYearTaskMateApp WHERE Id = @FyId");
+
+      if (fyQuery.recordset.length > 0) {
+        const { StartDate, EndDate } = fyQuery.recordset[0];
+        request.input("StartDate", sql.Date, StartDate);
+        request.input("EndDate", sql.Date, EndDate);
+        dateFilter = "AND A.FromDate >= @StartDate AND A.FromDate <= @EndDate";
+      }
+    }
+
+    const result = await request.query(`
       SELECT 
         A.Id,
         U.Name AS EmployeeName,
@@ -368,13 +455,16 @@ exports.getAllLeaveReport = async (req, res) => {
         A.SessionDay,
         A.Reason,
         A.Status,
-        A.EntryTimeStamp
+        A.EntryTimeStamp,
+        U2.Name AS ApprovedByName
       FROM ApplyLeaveTaskMateApp A
       JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
       JOIN LeaveTypeTaskMateApp L ON A.LeaveTypeTaskMateAppId = L.Id
       JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
+      LEFT JOIN UserTaskMateApp U2 ON A.ApprovedBy = U2.ID
       WHERE 1=1
       ${roleFilter}
+      ${dateFilter}
       ORDER BY A.Id DESC
     `);
 
@@ -471,5 +561,62 @@ exports.getTodayLeaves = async (req, res) => {
   }
 };
 
-// ======================== PHASE 2 & 3 APIs ========================
+// HR: Carry Forward Leave
+exports.carryForwardLeave = async (req, res) => {
+  try {
+    const { role } = req.user;
+    if (role !== "hr") {
+      return res.status(403).json({ success: false, message: "Only HR can carry forward leaves" });
+    }
 
+    const {
+      userId,
+      leaveTypeId,
+      fromFinancialYearId,
+      toFinancialYearId,
+      carriedForwardDays,
+    } = req.body;
+
+    if (!userId || !leaveTypeId || !fromFinancialYearId || !toFinancialYearId || carriedForwardDays === undefined) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const pool = await poolPromise;
+
+    // Check if carry forward already exists
+    const checkQuery = await pool.request()
+      .input("UserId", sql.Int, userId)
+      .input("LeaveTypeId", sql.Int, leaveTypeId)
+      .input("FromFY", sql.Int, fromFinancialYearId)
+      .input("ToFY", sql.Int, toFinancialYearId)
+      .query(`
+        SELECT Id FROM LeaveCarryForwardTaskMateApp
+        WHERE UserTaskMateAppId = @UserId 
+        AND LeaveTypeTaskMateAppId = @LeaveTypeId
+        AND FromFinancialYearId = @FromFY
+        AND ToFinancialYearId = @ToFY
+      `);
+
+    if (checkQuery.recordset.length > 0) {
+      return res.status(400).json({ success: false, message: "Leave already carried forward for this financial year." });
+    } else {
+      // Insert
+      await pool.request()
+        .input("UserId", sql.Int, userId)
+        .input("LeaveTypeId", sql.Int, leaveTypeId)
+        .input("FromFY", sql.Int, fromFinancialYearId)
+        .input("ToFY", sql.Int, toFinancialYearId)
+        .input("Days", sql.Int, carriedForwardDays)
+        .query(`
+          INSERT INTO LeaveCarryForwardTaskMateApp 
+          (UserTaskMateAppId, LeaveTypeTaskMateAppId, FromFinancialYearId, ToFinancialYearId, CarriedForwardDays)
+          VALUES (@UserId, @LeaveTypeId, @FromFY, @ToFY, @Days)
+        `);
+    }
+
+    res.json({ success: true, message: "Leave carried forward successfully" });
+  } catch (err) {
+    console.error("Carry Forward Leave Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

@@ -90,6 +90,45 @@ async function createTables() {
     `);
 
     console.log("All tables and mock data created successfully!");
+    console.log("Creating FinancialYearTaskMateApp table...");
+    await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='FinancialYearTaskMateApp' and xtype='U')
+    CREATE TABLE FinancialYearTaskMateApp (
+      Id INT IDENTITY(1,1) PRIMARY KEY,
+      YearString NVARCHAR(20) NOT NULL,
+      StartDate DATE NOT NULL,
+      EndDate DATE NOT NULL,
+      IsCurrent BIT DEFAULT 0
+    );
+  `);
+
+    console.log("Creating LeaveCarryForwardTaskMateApp table...");
+    await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LeaveCarryForwardTaskMateApp' and xtype='U')
+    CREATE TABLE LeaveCarryForwardTaskMateApp (
+      Id INT IDENTITY(1,1) PRIMARY KEY,
+      UserTaskMateAppId INT NOT NULL,
+      LeaveTypeTaskMateAppId INT NOT NULL,
+      FromFinancialYearId INT NOT NULL,
+      ToFinancialYearId INT NOT NULL,
+      CarriedForwardDays INT NOT NULL DEFAULT 0,
+      EntryTimeStamp DATETIME DEFAULT GETDATE()
+    );
+  `);
+
+    console.log("Inserting mock financial years...");
+    await pool.request().query(`
+    IF NOT EXISTS (SELECT 1 FROM FinancialYearTaskMateApp)
+    BEGIN
+      INSERT INTO FinancialYearTaskMateApp (YearString, StartDate, EndDate, IsCurrent)
+      VALUES 
+        ('2025-2026', '2025-04-01', '2026-03-31', 0),
+        ('2026-2027', '2026-04-01', '2027-03-31', 1),
+        ('2027-2028', '2027-04-01', '2028-03-31', 0);
+    END
+  `);
+
+    console.log('Tables created and mock data inserted successfully.');
     process.exit(0);
   } catch (error) {
     console.error("Error creating tables:", error);

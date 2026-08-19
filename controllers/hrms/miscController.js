@@ -132,5 +132,20 @@ exports.getTodayEvents = async (req, res) => {
   }
 };
 
-// ================= PHASE 3: ADMIN REPORT & REGULARIZATION =================
+// Get Financial Years
+exports.getFinancialYears = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT Id, YearString, StartDate, EndDate, IsCurrent
+      FROM FinancialYearTaskMateApp
+      ORDER BY StartDate DESC
+    `);
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error("Get Financial Years Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
+// ================= PHASE 3: ADMIN REPORT & REGULARIZATION =================

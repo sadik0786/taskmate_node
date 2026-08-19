@@ -5,13 +5,6 @@ exports.getEmployees = async (req, res) => {
   try {
     const user = req.user;
     const pool = await poolPromise;
-
-    // let query = `
-    //   SELECT U.ID, U.ProfileImage, U.Name, U.Email, U.Mobile, R.RoleName, U.ReportingID
-    //   FROM dbo.UserTaskMateApp U
-    //   INNER JOIN dbo.RoleTaskMateApp R ON U.RoleID = R.RoleID
-    // `;
-
     let query = `
       SELECT 
         U.ID, 
@@ -34,7 +27,7 @@ exports.getEmployees = async (req, res) => {
       LEFT JOIN dbo.EmployeeDetailsTaskMateApp ED ON U.ID = ED.UserID
     `;
 
-    query += ` WHERE R.RoleName != 'manager'`;
+    // No filter on role, everyone can see all employees.
 
     const result = await pool
       .request()

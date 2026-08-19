@@ -328,9 +328,17 @@ exports.getProfile = async (req, res) => {
       .request()
       .input("UserId", sql.Int, req.user.id)
       .query(
-        `SELECT u.ID, u.Name, u.Email, u.Mobile, u.RoleID, r.RoleName, u.ReportingID
+        `SELECT 
+           u.ID, u.Name, u.Email, u.Mobile, u.RoleID, r.RoleName, u.ReportingID,
+           u2.Name AS AddedByName,
+           ED.EmployeeID, ED.Gender, ED.DateOfBirth, ED.BloodGroup, 
+           ED.EmergencyContact, ED.Address, ED.Department, ED.DateOfJoining, 
+           ED.EmploymentType, ED.OfficeLocation, ED.Salary, ED.AadhaarNumber, 
+           ED.PANNumber, ED.BankDetails, ED.ProfileStatus
          FROM dbo.UserTaskMateApp u
          LEFT JOIN dbo.RoleTaskMateApp r ON u.RoleID = r.RoleId
+         LEFT JOIN dbo.UserTaskMateApp u2 ON u.ReportingID = u2.ID
+         LEFT JOIN dbo.EmployeeDetailsTaskMateApp ED ON u.ID = ED.UserID
          WHERE u.ID = @UserId`,
       );
 
@@ -348,6 +356,22 @@ exports.getProfile = async (req, res) => {
         roleId: u.RoleID,
         roleName: (u.RoleName || "").toString(),
         reportingId: u.ReportingID,
+        addedByName: u.AddedByName,
+        employeeID: u.EmployeeID,
+        gender: u.Gender,
+        dateOfBirth: u.DateOfBirth,
+        bloodGroup: u.BloodGroup,
+        emergencyContact: u.EmergencyContact,
+        address: u.Address,
+        department: u.Department,
+        dateOfJoining: u.DateOfJoining,
+        employmentType: u.EmploymentType,
+        officeLocation: u.OfficeLocation,
+        salary: u.Salary,
+        aadhaarNumber: u.AadhaarNumber,
+        panNumber: u.PANNumber,
+        bankDetails: u.BankDetails,
+        profileStatus: u.ProfileStatus,
       },
     });
   } catch (err) {

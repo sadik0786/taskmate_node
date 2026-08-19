@@ -6,6 +6,7 @@ const {
   getHolidays,
   getMyPayslips,
   getTodayEvents,
+  getFinancialYears,
 } = require("../controllers/hrms/miscController");
 
 const {
@@ -18,6 +19,7 @@ const {
   getAllLeaveReport,
   cancelLeave,
   getTodayLeaves,
+  carryForwardLeave,
 } = require("../controllers/hrms/leaveController");
 
 const {
@@ -68,6 +70,13 @@ router.get(
   authorize(["manager", "hr", "ceo", "manager"]),
   getTodayLeaves
 );
+router.post(
+  "/carry-forward-leave",
+  authenticate,
+  authorize(["hr"]),
+  carryForwardLeave
+);
+router.get("/financial-years", authenticate, getFinancialYears);
 
 // Phase 2 & 3 Routes
 router.get("/holidays", authenticate, getHolidays);
