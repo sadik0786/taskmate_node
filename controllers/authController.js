@@ -154,10 +154,10 @@ exports.registerEmployee = async (req, res) => {
         });
       }
     } else if (creatorRole === ROLES.HR) {
-      if (![ROLE_IDS.Admin, ROLE_IDS.Employee].includes(newRoleId)) {
+      if (![ROLE_IDS.Admin, ROLE_IDS.Employee, ROLE_IDS.OfficeSupport].includes(newRoleId)) {
         return res.status(403).json({
           success: false,
-          error: "HR can only create Admin or Employee",
+          error: "HR can only create Admin, Employee or OfficeSupport",
         });
       }
     }
@@ -226,7 +226,7 @@ exports.getRoles = async (req, res) => {
     } else if (userRole === "hr") {
       roles = roles.filter((r) => {
         const role = (r.RoleName || "").toLowerCase().trim();
-        return role === "admin" || role === "employee";
+        return role === "admin" || role === "employee" || role === "officesupport";
       });
     } else {
       roles = [];

@@ -5,6 +5,7 @@ const ROLES = {
   manager: "manager",
   Admin: "admin",
   Employee: "employee",
+  OfficeSupport: "officesupport",
 };
 const ROLE_IDS = {
   CEO: 1,
@@ -13,6 +14,7 @@ const ROLE_IDS = {
   manager: 4,
   Admin: 5,
   Employee: 6,
+  OfficeSupport: 7,
 };
 
 module.exports = {
