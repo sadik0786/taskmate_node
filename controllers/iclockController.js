@@ -45,11 +45,11 @@ exports.receiveData = async (req, res) => {
         let punchType = "In";
         if (state === '1' || state === '5') punchType = "Out";
 
-        // Check if user exists in TaskMate database
+        // Check if user exists by EmployeeID in EmployeeDetailsTaskMateApp
         const userCheck = await pool
           .request()
-          .input("id", sql.Int, parseInt(empId) || 0)
-          .query("SELECT ID FROM UserTaskMateApp WHERE ID = @id");
+          .input("empId", sql.VarChar, empId)
+          .query("SELECT UserID AS ID FROM EmployeeDetailsTaskMateApp WHERE EmployeeID = @empId");
 
         if (userCheck.recordset.length > 0) {
           const userId = userCheck.recordset[0].ID;
