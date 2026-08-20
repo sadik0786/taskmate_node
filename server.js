@@ -9,6 +9,7 @@ const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const taskRoutes = require("./routes/task");
 const hrmsRoutes = require("./routes/hrms");
+const iclockRoutes = require("./routes/iclock");
 
 const PORT = process.env.PORT || 5000;
 const app = express();
@@ -60,6 +61,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/task", taskRoutes);
 app.use("/api/hrms", hrmsRoutes);
+app.use("/iclock", iclockRoutes); // eSSL ADMS protocol requires root-level /iclock
 
 // Start server
 app.listen(PORT, "0.0.0.0", async () => {
