@@ -198,9 +198,11 @@ exports.getOtherLeaveRequest = async (req, res) => {
 
     let roleFilter = "";
     if (role === "ceo") {
-      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager', 'hr', 'accountant', 'manager')";
     } else if (role === "manager") {
-      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+      roleFilter = `AND R.RoleName IN ('Admin', 'Employee', 'admin', 'employee') AND U.ReportingID = ${id}`;
+    } else if (role === "hr") {
+      roleFilter = "AND R.RoleName IN ('OfficeSupport', 'officesupport')";
     }
 
     const { financialYearId } = req.query;
@@ -282,40 +284,39 @@ exports.updateLeaves = async (req, res) => {
 
     const pool = await poolPromise;
 
-    if (role !== "manager") {
-      const leaveRecord = await pool.request().query(`
-        SELECT R.RoleName 
-        FROM ApplyLeaveTaskMateApp A
-        JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
-        JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
-        WHERE A.Id = ${leaveId}
-      `);
+    const leaveRecord = await pool.request().query(`
+      SELECT R.RoleName, U.ReportingID
+      FROM ApplyLeaveTaskMateApp A
+      JOIN UserTaskMateApp U ON A.UserTaskMateAppId = U.ID
+      JOIN RoleTaskMateApp R ON U.RoleID = R.RoleId
+      WHERE A.Id = ${leaveId}
+    `);
 
-      if (leaveRecord.recordset.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Leave not found" });
+    if (leaveRecord.recordset.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Leave not found" });
+    }
+
+    const targetRole = leaveRecord.recordset[0].RoleName.toLowerCase().trim();
+    const targetReportingId = leaveRecord.recordset[0].ReportingID;
+    let authorized = false;
+
+    if (role === "ceo" && ["hr", "accountant", "manager"].includes(targetRole))
+      authorized = true;
+    else if (role === "hr" && ["officesupport"].includes(targetRole))
+      authorized = true;
+    else if (role === "manager" && ["admin", "employee"].includes(targetRole)) {
+      if (targetReportingId === id) {
+        authorized = true;
       }
+    }
 
-      const targetRole = leaveRecord.recordset[0].RoleName.toLowerCase();
-      let authorized = false;
-
-      if (
-        role === "ceo" &&
-        ["hr", "accountant", "manager"].includes(targetRole)
-      )
-        authorized = true;
-      if (role === "hr" && ["officesupport"].includes(targetRole))
-        authorized = true;
-      if (role === "manager" && ["admin", "employee"].includes(targetRole))
-        authorized = true;
-
-      if (!authorized) {
-        return res.status(403).json({
-          success: false,
-          message: "You are not authorized to approve leave for this role",
-        });
-      }
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        message: `You (${role}) are not authorized to approve leave for this role (${targetRole})`,
+      });
     }
 
     const request = pool
@@ -366,7 +367,7 @@ exports.updateLeaves = async (req, res) => {
 
 exports.getPendingLeavesForHr = async (req, res) => {
   try {
-    const { role } = req.user;
+    const { role, id } = req.user;
     const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     if (!allowedRoles.includes(role)) {
@@ -375,9 +376,11 @@ exports.getPendingLeavesForHr = async (req, res) => {
 
     let roleFilter = "";
     if (role === "ceo") {
-      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager', 'hr', 'accountant', 'manager')";
     } else if (role === "manager") {
-      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+      roleFilter = `AND R.RoleName IN ('Admin', 'Employee', 'admin', 'employee') AND U.ReportingID = ${id}`;
+    } else if (role === "hr") {
+      roleFilter = "AND R.RoleName IN ('OfficeSupport', 'officesupport')";
     }
 
     const pool = await poolPromise;
@@ -410,7 +413,7 @@ exports.getPendingLeavesForHr = async (req, res) => {
 // get all leaves report (Pending, Approved, Rejected) for HR/Admin
 exports.getAllLeaveReport = async (req, res) => {
   try {
-    const { role } = req.user;
+    const { role, id } = req.user;
     const allowedRoles = ["hr", "manager", "ceo", "manager"];
 
     if (!allowedRoles.includes(role)) {
@@ -419,9 +422,11 @@ exports.getAllLeaveReport = async (req, res) => {
 
     let roleFilter = "";
     if (role === "ceo") {
-      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager')";
+      roleFilter = "AND R.RoleName IN ('HR', 'Accountant', 'Manager', 'hr', 'accountant', 'manager')";
     } else if (role === "manager") {
-      roleFilter = "AND R.RoleName IN ('Admin', 'Employee')";
+      roleFilter = `AND R.RoleName IN ('Admin', 'Employee', 'admin', 'employee') AND U.ReportingID = ${id}`;
+    } else if (role === "hr") {
+      roleFilter = "AND R.RoleName IN ('OfficeSupport', 'officesupport')";
     }
 
     const { financialYearId } = req.query;
