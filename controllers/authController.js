@@ -84,21 +84,13 @@ exports.checkEmailExists = async (req, res) => {
       });
     }
 
-    const pool = await poolPromise;
+    const filePath = path.join(__dirname, "../config/finance_users.json");
+    const fileData = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const userInJson = fileData.users.find(
+      (u) => u["Email Address [Required]"]?.toLowerCase() === email.toLowerCase()
+    );
 
-    // Check if email exists in EmailTaskMateApp table and is active
-    const emailCheckQuery = `
-      SELECT COUNT(*) as emailCount 
-      FROM dbo.EmailTaskMateApp 
-      WHERE EmpEmail = @Email AND IsActive = 1
-    `;
-
-    const emailCheckResult = await pool
-      .request()
-      .input("Email", sql.NVarChar(150), email)
-      .query(emailCheckQuery);
-
-    const emailExists = emailCheckResult.recordset[0].emailCount > 0;
+    const emailExists = !!userInJson;
 
     res.json({
       success: true,
@@ -137,8 +129,29 @@ exports.registerEmployee = async (req, res) => {
     }
     if (!email.endsWith("@5nance.com")) {
       return res
-        .status(400)
-        .json({ error: "Only @5nance.com emails are allowed" });
+        .status(200)
+        .json({ success: false, error: "Only @5nance.com emails are allowed" });
+    }
+
+    // Verify email in finance_users.json
+    const filePath = path.join(__dirname, "../config/finance_users.json");
+    const fileData = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const userInJson = fileData.users.find(
+      (u) => u["Email Address [Required]"]?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!userInJson) {
+      return res.status(200).json({
+        success: false,
+        error: "Your email is not in the authorized list. Contact HR.",
+      });
+    }
+
+    if (userInJson["Status [READ ONLY]"] !== "Active") {
+      return res.status(200).json({
+        success: false,
+        error: "Your email is currently inactive in the authorized list.",
+      });
     }
 
     // Role Hierarchy Logic
