@@ -42,9 +42,12 @@ exports.getTasksByHierarchy = async (req, res) => {
         u.Email as userEmail,
         creator.Name as createdByName,
         p.ProjectName as project,
-        sp.SubProjectName as subProject
+        sp.SubProjectName as subProject,
+        t.TaskAssignTo as taskAssignTo,
+        assignedUser.Name as taskAssignToName
       FROM DailyTaskMateApp t
       LEFT JOIN UserTaskMateApp u ON t.UserTaskMateAppID = u.ID
+      LEFT JOIN UserTaskMateApp assignedUser ON t.TaskAssignTo = assignedUser.ID
       LEFT JOIN UserTaskMateApp creator ON t.CreatedBy = creator.ID
       LEFT JOIN ProjectTaskMateApp p ON t.ProjectID = p.ProjectId  
       LEFT JOIN SubProjectTaskMateApp sp ON t.SubProjectID = sp.SubProjectId
@@ -98,9 +101,10 @@ exports.getTaskById = async (req, res) => {
     // Get the task
     const taskResult = await pool.request().input("taskId", sql.Int, taskId)
       .query(`
-        SELECT t.*, u.Name as UserName
+        SELECT t.*, u.Name as UserName, assignedUser.Name as TaskAssignToName
         FROM DailyTaskMateApp t
         LEFT JOIN UserTaskMateApp u ON t.UserTaskMateAppID = u.ID
+        LEFT JOIN UserTaskMateApp assignedUser ON t.TaskAssignTo = assignedUser.ID
         WHERE t.TaskId = @taskId
       `);
 
@@ -140,6 +144,7 @@ exports.createTask = async (req, res) => {
       startDate,
       endDate,
       CreatedBy,
+      taskAssignTo,
     } = req.body;
 
     // console.log("🔍 Received task data:", req.body);
@@ -158,11 +163,12 @@ exports.createTask = async (req, res) => {
       .input("Status", sql.VarChar(50), status)
       .input("StartDate", sql.DateTime, new Date(startDate))
       .input("EndDate", sql.DateTime, new Date(endDate))
-      .input("CreatedBy", sql.Int, CreatedBy).query(`
+      .input("CreatedBy", sql.Int, CreatedBy)
+      .input("TaskAssignTo", sql.Int, taskAssignTo || null).query(`
         INSERT INTO dbo.DailyTaskMateApp
-          (UserTaskMateAppID, ProjectID, SubProjectID, Title, Mode, TaskDetails, Status, StartDate, EndDate, CreatedBy)
+          (UserTaskMateAppID, ProjectID, SubProjectID, Title, Mode, TaskDetails, Status, StartDate, EndDate, CreatedBy, TaskAssignTo)
         VALUES
-          (@UserTaskMateAppID, @ProjectID, @SubProjectID, @Title, @Mode, @TaskDetails, @Status, @StartDate, @EndDate, @CreatedBy)
+          (@UserTaskMateAppID, @ProjectID, @SubProjectID, @Title, @Mode, @TaskDetails, @Status, @StartDate, @EndDate, @CreatedBy, @TaskAssignTo)
       `);
     res.json({ success: true, message: "Task added successfully" });
   } catch (error) {
@@ -185,6 +191,7 @@ exports.updateTask = async (req, res) => {
       status,
       startDate,
       endDate,
+      taskAssignTo,
     } = req.body;
 
     const pool = await poolPromise;
@@ -201,6 +208,7 @@ exports.updateTask = async (req, res) => {
       .input("StartDate", sql.DateTime, new Date(startDate))
       .input("EndDate", sql.DateTime, new Date(endDate))
       .input("UpdatedBy", sql.Int, userId)
+      .input("TaskAssignTo", sql.Int, taskAssignTo || null)
       .query(
         `UPDATE dbo.DailyTaskMateApp
          SET ProjectID = @ProjectID,
@@ -212,7 +220,8 @@ exports.updateTask = async (req, res) => {
              StartDate = @StartDate,
              EndDate = @EndDate,
              UpdatedAt = GETDATE(),
-             UpdatedBy = @UpdatedBy
+             UpdatedBy = @UpdatedBy,
+             TaskAssignTo = @TaskAssignTo
          WHERE TaskID = @TaskID`
       );
 

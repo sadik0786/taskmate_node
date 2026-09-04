@@ -236,9 +236,12 @@ exports.getEmployeeTasks = async (req, res) => {
         T.UserTaskMateAppID as userId,
         U.Name as userName,
         P.ProjectName as project,
-        SP.SubProjectName as subProject
+        SP.SubProjectName as subProject,
+        T.TaskAssignTo as taskAssignTo,
+        AssignedUser.Name as taskAssignToName
       FROM dbo.DailyTaskMateApp T
       INNER JOIN dbo.UserTaskMateApp U ON T.UserTaskMateAppID = U.ID
+      LEFT JOIN dbo.UserTaskMateApp AssignedUser ON T.TaskAssignTo = AssignedUser.ID
       LEFT JOIN dbo.ProjectTaskMateApp P ON T.ProjectID = P.ProjectId
       LEFT JOIN dbo.SubProjectTaskMateApp SP ON T.SubProjectID = SP.SubProjectId
       WHERE T.UserTaskMateAppID = @EmpId
@@ -287,9 +290,12 @@ exports.getAllEmployeeTasks = async (req, res) => {
         U.RoleID as roleId,
         U.ReportingID as reportingId,
         P.ProjectName as project,
-        SP.SubProjectName as subProject
+        SP.SubProjectName as subProject,
+        T.TaskAssignTo as taskAssignTo,
+        AssignedUser.Name as taskAssignToName
       FROM dbo.DailyTaskMateApp T
       INNER JOIN dbo.UserTaskMateApp U ON T.UserTaskMateAppID = U.ID
+      LEFT JOIN dbo.UserTaskMateApp AssignedUser ON T.TaskAssignTo = AssignedUser.ID
       LEFT JOIN dbo.ProjectTaskMateApp P ON T.ProjectID = P.ProjectId
       LEFT JOIN dbo.SubProjectTaskMateApp SP ON T.SubProjectID = SP.SubProjectId
       WHERE 1=1
@@ -325,10 +331,12 @@ exports.getAllAdminTasks = async (req, res) => {
         T.TaskDetails,
         T.Status,
         T.CreatedAt,
-        U.Name AS AdminName
+        U.Name AS AdminName,
+        T.TaskAssignTo,
+        AssignedUser.Name AS TaskAssignToName
       FROM dbo.DailyTaskMateApp T
-      INNER JOIN dbo.UserTaskMateApp U 
-        ON T.UserTaskMateAppID = U.ID
+      INNER JOIN dbo.UserTaskMateApp U ON T.UserTaskMateAppID = U.ID
+      LEFT JOIN dbo.UserTaskMateApp AssignedUser ON T.TaskAssignTo = AssignedUser.ID
       WHERE U.RoleID = 2
     `;
 
@@ -397,7 +405,7 @@ exports.addSubProject = async (req, res) => {
     const userId = req.user.id;
     const { projectId, subProjectName } = req.body;
 
-    if (!projectId || !subProjectName) {
+    if (projectId === undefined || projectId === null || !subProjectName) {
       return res.status(400).json({
         success: false,
         error: "Project ID and Sub Project name are required",
