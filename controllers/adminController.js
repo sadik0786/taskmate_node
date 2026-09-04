@@ -17,7 +17,7 @@ exports.getEmployees = async (req, res) => {
         R2.RoleName AS ReportingRole,
         U2.Name AS AddedByName,
         ED.EmployeeID, ED.Gender, ED.DateOfBirth, ED.BloodGroup, 
-        ED.EmergencyContact, ED.Address, ED.Department, ED.DateOfJoining, 
+        ED.EmergencyContact, ED.Address, ED.Department, ED.Designation, ED.DateOfJoining, 
         ED.EmploymentType, ED.OfficeLocation, ED.Salary, ED.AadhaarNumber, 
         ED.PANNumber, ED.BankDetails, ED.ProfileStatus
       FROM dbo.UserTaskMateApp U
@@ -55,6 +55,7 @@ exports.updateEmployeeDetails = async (req, res) => {
       EmergencyContact,
       Address,
       Department,
+      Designation,
       DateOfJoining,
       EmploymentType,
       OfficeLocation,
@@ -64,6 +65,8 @@ exports.updateEmployeeDetails = async (req, res) => {
       BankDetails,
       ProfileStatus,
     } = req.body;
+
+    const finalOfficeLocation = OfficeLocation || "B 603, Eureka Towers, Mind Space, Malad (West) Mumbai - 400064";
 
     const pool = await poolPromise;
 
@@ -91,13 +94,14 @@ exports.updateEmployeeDetails = async (req, res) => {
         .input("EmergencyContact", sql.VarChar, EmergencyContact)
         .input("Address", sql.NVarChar, Address)
         .input("Department", sql.VarChar, Department)
+        .input("Designation", sql.VarChar, Designation)
         .input(
           "DateOfJoining",
           sql.Date,
           DateOfJoining ? new Date(DateOfJoining) : null,
         )
         .input("EmploymentType", sql.VarChar, EmploymentType)
-        .input("OfficeLocation", sql.VarChar, OfficeLocation)
+        .input("OfficeLocation", sql.VarChar, finalOfficeLocation)
         .input("Salary", sql.Decimal(18, 2), Salary ? parseFloat(Salary) : null)
         .input("AadhaarNumber", sql.VarChar, AadhaarNumber)
         .input("PANNumber", sql.VarChar, PANNumber)
@@ -106,7 +110,7 @@ exports.updateEmployeeDetails = async (req, res) => {
           UPDATE dbo.EmployeeDetailsTaskMateApp SET 
             EmployeeID = @EmployeeID, Gender = @Gender, DateOfBirth = @DateOfBirth, 
             BloodGroup = @BloodGroup, EmergencyContact = @EmergencyContact, 
-            Address = @Address, Department = @Department, DateOfJoining = @DateOfJoining, 
+            Address = @Address, Department = @Department, Designation = @Designation, DateOfJoining = @DateOfJoining, 
             EmploymentType = @EmploymentType, OfficeLocation = @OfficeLocation, 
             Salary = @Salary, AadhaarNumber = @AadhaarNumber, PANNumber = @PANNumber, 
             BankDetails = @BankDetails, ProfileStatus = @ProfileStatus, UpdatedAt = GETDATE()
@@ -128,22 +132,23 @@ exports.updateEmployeeDetails = async (req, res) => {
         .input("EmergencyContact", sql.VarChar, EmergencyContact)
         .input("Address", sql.NVarChar, Address)
         .input("Department", sql.VarChar, Department)
+        .input("Designation", sql.VarChar, Designation)
         .input(
           "DateOfJoining",
           sql.Date,
           DateOfJoining ? new Date(DateOfJoining) : null,
         )
         .input("EmploymentType", sql.VarChar, EmploymentType)
-        .input("OfficeLocation", sql.VarChar, OfficeLocation)
+        .input("OfficeLocation", sql.VarChar, finalOfficeLocation)
         .input("Salary", sql.Decimal(18, 2), Salary ? parseFloat(Salary) : null)
         .input("AadhaarNumber", sql.VarChar, AadhaarNumber)
         .input("PANNumber", sql.VarChar, PANNumber)
         .input("BankDetails", sql.NVarChar, BankDetails)
         .input("ProfileStatus", sql.VarChar, ProfileStatus || "Active").query(`
           INSERT INTO dbo.EmployeeDetailsTaskMateApp 
-          (UserID, EmployeeID, Gender, DateOfBirth, BloodGroup, EmergencyContact, Address, Department, DateOfJoining, EmploymentType, OfficeLocation, Salary, AadhaarNumber, PANNumber, BankDetails, ProfileStatus)
+          (UserID, EmployeeID, Gender, DateOfBirth, BloodGroup, EmergencyContact, Address, Department, Designation, DateOfJoining, EmploymentType, OfficeLocation, Salary, AadhaarNumber, PANNumber, BankDetails, ProfileStatus)
           VALUES 
-          (@UserID, @EmployeeID, @Gender, @DateOfBirth, @BloodGroup, @EmergencyContact, @Address, @Department, @DateOfJoining, @EmploymentType, @OfficeLocation, @Salary, @AadhaarNumber, @PANNumber, @BankDetails, @ProfileStatus)
+          (@UserID, @EmployeeID, @Gender, @DateOfBirth, @BloodGroup, @EmergencyContact, @Address, @Department, @Designation, @DateOfJoining, @EmploymentType, @OfficeLocation, @Salary, @AadhaarNumber, @PANNumber, @BankDetails, @ProfileStatus)
         `);
     }
 
