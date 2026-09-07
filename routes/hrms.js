@@ -6,6 +6,9 @@ const {
   getHolidays,
   getMyPayslips,
   getTodayEvents,
+  getMonthEvents,
+  toggleEventLike,
+  addEventComment,
   getFinancialYears,
 } = require("../controllers/hrms/miscController");
 
@@ -116,5 +119,10 @@ router.get("/my-payslips", authenticate, getMyPayslips);
 
 // Today's events
 router.get("/today-events", authenticate, getTodayEvents);
+
+// Month events & interactions
+router.get("/month-events", authenticate, getMonthEvents);
+router.post("/event/like", authenticate, toggleEventLike);
+router.post("/event/comment", authenticate, addEventComment);
 
 module.exports = router;

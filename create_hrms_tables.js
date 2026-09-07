@@ -128,6 +128,21 @@ async function createTables() {
     END
   `);
 
+    console.log("Creating EventInteractionsTaskMateApp table...");
+    await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventInteractionsTaskMateApp' and xtype='U')
+    CREATE TABLE EventInteractionsTaskMateApp (
+      Id INT IDENTITY(1,1) PRIMARY KEY,
+      EventType NVARCHAR(50) NOT NULL,
+      EventUserId INT NOT NULL,
+      InteractionType NVARCHAR(50) NOT NULL,
+      InteractionByUserId INT NOT NULL,
+      CommentText NVARCHAR(MAX),
+      EventYear INT NOT NULL,
+      EntryTimeStamp DATETIME DEFAULT GETDATE()
+    );
+  `);
+
     console.log('Tables created and mock data inserted successfully.');
     process.exit(0);
   } catch (error) {
