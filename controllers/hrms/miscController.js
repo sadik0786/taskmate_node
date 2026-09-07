@@ -15,12 +15,14 @@ exports.getAllEmployee = async (req, res) => {
         U.RoleID,
         R.RoleName,
         U.ReportingID,
+        ED.Department,
         U.CreatedAt,
         U.CreatedBy,
         U.UpdatedAt,
         U.UpdatedBy
       FROM UserTaskMateApp U
       LEFT JOIN RoleTaskMateApp R ON U.RoleID = R.RoleID
+      LEFT JOIN EmployeeDetailsTaskMateApp ED ON U.ID = ED.UserID
       ORDER BY U.Name;
     `);
 
