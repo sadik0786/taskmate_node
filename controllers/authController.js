@@ -109,7 +109,7 @@ exports.checkEmailExists = async (req, res) => {
 };
 //------ REGISTER EMPLOYEE (Admin only)
 exports.registerEmployee = async (req, res) => {
-  const { name, email, mobile, password, roleId, reportingId } = req.body;
+  const { name, email, mobile, password, roleId, reportingId, department } = req.body;
 
 
   try {
@@ -198,6 +198,24 @@ exports.registerEmployee = async (req, res) => {
       return res
         .status(500)
         .json({ success: false, error: "Failed to create employee" });
+    }
+
+    if (department && department.trim() !== "") {
+      const checkResult = await pool.request()
+        .input("UserID", sql.Int, employee.ID)
+        .query(`SELECT DetailID FROM dbo.EmployeeDetailsTaskMateApp WHERE UserID = @UserID`);
+      
+      if (checkResult.recordset.length > 0) {
+        await pool.request()
+          .input("UserID", sql.Int, employee.ID)
+          .input("Department", sql.VarChar(100), department)
+          .query(`UPDATE dbo.EmployeeDetailsTaskMateApp SET Department = @Department WHERE UserID = @UserID`);
+      } else {
+        await pool.request()
+          .input("UserID", sql.Int, employee.ID)
+          .input("Department", sql.VarChar(100), department)
+          .query(`INSERT INTO dbo.EmployeeDetailsTaskMateApp (UserID, Department) VALUES (@UserID, @Department)`);
+      }
     }
 
     res.json({
